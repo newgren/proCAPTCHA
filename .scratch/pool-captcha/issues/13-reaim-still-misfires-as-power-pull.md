@@ -1,0 +1,27 @@
+# 13 — Re-aiming still gets misread as a power pull-back
+
+**What to build:** Ticket 06 (re-aim before power lock) and a same-day follow-up fix are both merged, but the bug is still reproducible live: after locking an aim (armed), starting a new drag to redirect the aim still frequently shows the power bar building up instead of rotating the aim line — confirmed by Travis on a fresh page load, not a stale-cache issue.
+
+**Root cause so far:** `index.html`'s `pointerdown`/`pointermove` handlers (search `phase === "armed"` and `phase === "pulling"`) decide "is this drag a pull-back or a re-aim" using only the *direction* of the new drag relative to the *already-locked* `aimAngle` — first a bare sign check (`pulled > 0`), then narrowed to a 45°-either-side cone around the exact back direction. Both are direction-only heuristics computed from wherever the second `pointerdown` happens to land, which is **not required to be anywhere near the cue ball** (the very first aim gesture, from `phase === "idle"`, already lets a player click anywhere on the canvas and just points the aim from the cue ball to the pointer — there's nothing stopping a player from re-aiming attempts the same way, clicking away from the cue ball). When the second click lands away from the cue ball, the drag's direction relative to *that* arbitrary start point can easily fall inside the "back" cone by coincidence, misclassifying an intended re-aim as a pull-back. Narrowing the cone further would just shrink the false-positive window, not remove it — this needs a structurally different disambiguation, not another angle tweak.
+
+**Suggested direction (not mandatory — use judgment, but the fix must handle the scenario below):** make gesture classification depend on **where the second gesture starts relative to the cue ball**, not only on drag direction. E.g., a `pointerdown` while `armed` that lands close to the cue ball begins a candidate pull-back (existing direction/deadzone logic can still apply from there); a `pointerdown` that lands elsewhere on the table immediately re-enters `"aiming"` and tracks the pointer the same way the original idle→aiming gesture does. Pick whatever concrete rule reliably separates "trying to pull the cue back" from "trying to point somewhere new," and write it as a **pure, dependency-free function** so it can be unit tested without a browser or DOM — following this repo's existing pattern of `game.js` + `game.test.js` (plain `node:test`, no framework, no bundler). A small new pure module (e.g. `input.js` + `input.test.js`) mirroring that pattern is an acceptable, minimal deviation from the "two app files" architecture decision in `CONTEXT.md`/the spec — `game.test.js` is already precedent that test-only files don't count against that rule. Do not add Playwright or any other devDependency to `package.json` to satisfy this ticket; the classification logic must be testable as pure input→output, no DOM required.
+
+**Blocked by:** None (builds on the already-merged ticket 06 commit and its same-day follow-up fix)
+
+**Status:** ready-for-agent
+
+- [ ] Work test-first: write `node:test` cases for the extracted pure classification function *before* changing the wiring in `index.html`, covering at minimum:
+  - a bare tap/click with ~zero movement while armed → not a pull, stays armed, no shot
+  - a drag, starting at/very near the cue ball, roughly backward along the current aim line → recognized as a pull-back, power scales with pull distance
+  - a drag, starting at/very near the cue ball, sideways or forward (not aligned with backward) → recognized as a re-aim, not a pull
+  - a drag starting **away from the cue ball** (anywhere else on the table), in *any* direction, including ones that would numerically fall inside the old direction-only "back cone" → recognized as a re-aim, never misread as a pull — this is the scenario that reproduces Travis's actual bug report and must be explicitly covered
+  - a full, genuine pull-back that reaches `MAX_PULL` and is released → fires a real shot with `pullPower` at or near `1`
+- [ ] All new tests fail against the current (buggy) logic before the fix, and pass after — confirm this rather than assuming it
+- [ ] `index.html` is wired to use the extracted function so the actual UI exhibits the fixed behavior, not just the isolated tests
+- [ ] Existing `game.js` suite still passes unmodified (`npm test`)
+- [ ] Manual browser verification via the `/run` skill, reproducing the exact real-world sequence that's been failing: lock an aim, then start the re-aim drag from a point that is **not** the cue ball's exact pixel position (e.g. a plausible spot a real hand/cursor would land), drag to a new angle, and confirm the aim line follows the drag with no power bar and no shot fired, for at least 3 different re-aim directions relative to the original aim
+- [ ] Also verify one genuine pull-back-and-release in the same browser session still fires a normal shot afterward, so the fix hasn't broken the power gesture itself
+
+## Comments
+
+Opened 2026-08-13. Two prior attempts at this (the initial ticket 06 implementation, and a same-day tightening to a 45° alignment cone) both looked correct in isolated automated checks but did not hold up against Travis's real interaction — the direction-only heuristic is fundamentally fragile regardless of threshold, hence the suggested pivot to a start-position-aware, unit-testable rule instead of another angle adjustment.
