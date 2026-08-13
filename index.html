@@ -303,6 +303,29 @@ import {
 } from "./game.js";
 import { classifyReaimGesture } from "./input.js";
 
+// Page-open tracking via the shared travis-page-opens service (silent — no
+// stats rendered on the page, this is just a personal visit counter).
+// Never counts local dev-server QA runs. Visit once with ?owner=1 to opt a
+// given browser out permanently instead (stored in localStorage).
+(() => {
+  const ENDPOINT = "https://travis-page-opens.fly.dev";
+  const APP = "procaptcha";
+  const isLocalhost = ["localhost", "127.0.0.1"].includes(location.hostname);
+  if (new URLSearchParams(location.search).get("owner") === "1") {
+    localStorage.setItem("owner-visit", "1");
+  }
+  const isOwner = isLocalhost || localStorage.getItem("owner-visit") === "1";
+  if (isOwner) return;
+
+  const isNewSession = !sessionStorage.getItem("page-open-counted");
+  fetch(`${ENDPOINT}/hit?app=${APP}`)
+    .then(() => {
+      if (isNewSession) return fetch(`${ENDPOINT}/hit-unique?app=${APP}`);
+    })
+    .then(() => sessionStorage.setItem("page-open-counted", "1"))
+    .catch(() => {});
+})();
+
 const hud = document.getElementById("hud");
 const versusLabel = document.getElementById("versus-label");
 const introBanner = document.getElementById("intro-banner");
