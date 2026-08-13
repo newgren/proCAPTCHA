@@ -414,36 +414,132 @@ function pointerTablePos(evt) {
   };
 }
 
+// Rail (Material blue, ticket 07) is drawn as a rounded frame, then each Pocket
+// punches a hole through it so the rail visibly curves around the pocket mouth
+// instead of a plain rectangle with a circle floating on top (ticket 11).
+const RAIL_COLOR = "#2c4faa";
+const RAIL_WIDTH = 28;
+const RAIL_OUTER_CORNER_RADIUS = 10;
+const RAIL_INNER_CORNER_RADIUS = 6;
+
+// Corner pockets read larger/more open than side (middle-rail) pockets, matching
+// a real table's proportions.
+const POCKET_GEOM = {
+  corner: { railCut: 42, mouth: 24 },
+  side: { railCut: 34, mouth: 19 },
+};
+
+function isCornerPocket(p) {
+  return (p.x === 0 || p.x === TABLE.width) && (p.y === 0 || p.y === TABLE.height);
+}
+
+function pocketGeom(p) {
+  return isCornerPocket(p) ? POCKET_GEOM.corner : POCKET_GEOM.side;
+}
+
+/** Angle from a pocket toward table center, used to orient the mouth's rim highlight. */
+function angleTowardTableCenter(p) {
+  return Math.atan2(TABLE.height / 2 - p.y, TABLE.width / 2 - p.x);
+}
+
+function addRoundedRectPath(path, x, y, w, h, r) {
+  path.moveTo(x + r, y);
+  path.arcTo(x + w, y, x + w, y + h, r);
+  path.arcTo(x + w, y + h, x, y + h, r);
+  path.arcTo(x, y + h, x, y, r);
+  path.arcTo(x, y, x + w, y, r);
+  path.closePath();
+}
+
+function drawRailAndPockets() {
+  const outerRect = new Path2D();
+  addRoundedRectPath(outerRect, 0, 0, TABLE.width, TABLE.height, RAIL_OUTER_CORNER_RADIUS);
+  const innerRect = new Path2D();
+  addRoundedRectPath(
+    innerRect,
+    RAIL_WIDTH,
+    RAIL_WIDTH,
+    TABLE.width - RAIL_WIDTH * 2,
+    TABLE.height - RAIL_WIDTH * 2,
+    RAIL_INNER_CORNER_RADIUS
+  );
+
+  const railFrame = new Path2D();
+  railFrame.addPath(outerRect);
+  railFrame.addPath(innerRect);
+
+  ctx.save();
+  ctx.shadowColor = "rgba(32, 33, 36, 0.35)";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = RAIL_COLOR;
+  ctx.fill(railFrame, "evenodd");
+  ctx.restore();
+
+  // Raised-cushion highlight where the rail meets the felt.
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+  ctx.lineWidth = 2;
+  ctx.stroke(innerRect);
+  ctx.restore();
+
+  // Punch a hole through the rail at each pocket so it curves around the mouth
+  // rather than terminating in a hard corner/edge.
+  ctx.save();
+  ctx.globalCompositeOperation = "destination-out";
+  POCKETS.forEach((p) => {
+    const g = pocketGeom(p);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, g.railCut, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawPocketMouth(p, g) {
+  const gradient = ctx.createRadialGradient(p.x, p.y, g.mouth * 0.15, p.x, p.y, g.mouth);
+  gradient.addColorStop(0, "#0a0b0d");
+  gradient.addColorStop(0.7, "#1b1d21");
+  gradient.addColorStop(1, "#303338");
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, g.mouth, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Rim highlight on the felt-facing side of the mouth, suggesting the cloth-covered
+  // jaw catching light as it curves down into the pocket.
+  const towardCenter = angleTowardTableCenter(p);
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, g.mouth - 2, towardCenter - Math.PI / 2.4, towardCenter + Math.PI / 2.4);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function draw() {
   ctx.clearRect(0, 0, TABLE.width, TABLE.height);
 
   ctx.fillStyle = "#4a72e0";
   ctx.fillRect(0, 0, TABLE.width, TABLE.height);
 
-  ctx.save();
-  ctx.shadowColor = "rgba(32, 33, 36, 0.35)";
-  ctx.shadowBlur = 10;
-  ctx.strokeStyle = "#2c4faa";
-  ctx.lineWidth = 16;
-  ctx.strokeRect(0, 0, TABLE.width, TABLE.height);
-  ctx.restore();
+  drawRailAndPockets();
 
   const selectingPocket = isEightBallShot(state) && state.calledPocket == null && !state.gameOver;
   POCKETS.forEach((p, i) => {
-    ctx.save();
-    ctx.shadowColor = "rgba(32, 33, 36, 0.4)";
-    ctx.shadowBlur = 6;
-    ctx.fillStyle = "#202124";
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    const g = pocketGeom(p);
+    drawPocketMouth(p, g);
 
     if (selectingPocket || state.calledPocket === i) {
       ctx.strokeStyle = "rgba(255,220,60,0.9)";
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, g.mouth + 9, 0, Math.PI * 2);
       ctx.stroke();
     }
   });
