@@ -246,6 +246,10 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 
+// Browsers restore form control values (checked state) across a same-page reload
+// independently of this script, so force it back to unchecked on load.
+verifyCheckbox.checked = false;
+
 let started = false;
 verifyCheckbox.addEventListener("input", () => {
   if (started) return;
