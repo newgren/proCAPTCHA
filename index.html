@@ -867,6 +867,8 @@ function updateHud() {
   updateWidgetResult();
 }
 
+let redirectScheduled = false;
+
 function updateWidgetResult() {
   if (!state.gameOver) {
     resultBanner.classList.add("hidden");
@@ -883,6 +885,12 @@ function updateWidgetResult() {
     checkmark.classList.remove("hidden");
     resultText.textContent = `Verified — you beat ${opponentName} at pool.`;
     tryAgainBtn.classList.add("hidden");
+    if (!redirectScheduled) {
+      redirectScheduled = true;
+      setTimeout(() => {
+        window.location.href = "https://www.schnucks.com/";
+      }, 1000);
+    }
   } else {
     resultText.textContent = `Verification failed — ${opponentName} won.`;
     tryAgainBtn.classList.remove("hidden");
@@ -895,6 +903,7 @@ tryAgainBtn.addEventListener("click", () => {
   phase = "idle";
   animation = null;
   pullPower = 0;
+  redirectScheduled = false;
   checkmark.classList.add("hidden");
   loaderCheckbox.classList.remove("hidden");
   updateVersusLabel();
