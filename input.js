@@ -22,7 +22,7 @@
 // dragged — that's what makes the "drag in a direction that would fool the old
 // cone" case impossible to misclassify.
 
-export const NEAR_CUE_RADIUS = 60; // table units; how close a second pointerdown must land to the cue ball to be a pull-back candidate at all
+export const NEAR_CUE_RADIUS = 120; // table units; how close a second pointerdown must land to the cue ball to be a pull-back candidate at all
 export const REAIM_DEADZONE = 10; // table units a pull candidate must move before it commits to pull vs. re-aim
 export const PULL_ALIGNMENT_MIN = Math.cos(Math.PI / 4); // drag must stay within 45° of straight-back to count as a pull
 export const MAX_PULL = 220; // table units of drag distance mapping to full power

@@ -855,7 +855,8 @@ const GAME_OVER_REASONS = {
 function updateHud() {
   if (state.gameOver) {
     const { winner, loser, reason } = state.gameOver;
-    hud.innerHTML = `${sideBadgeHtml(winner)} won — ${sideBadgeHtml(loser)} ${GAME_OVER_REASONS[reason]}`;
+    const actor = reason === "legal-win" ? winner : loser;
+    hud.innerHTML = `${sideBadgeHtml(winner)} won — ${sideBadgeHtml(actor)} ${GAME_OVER_REASONS[reason]}`;
   } else if (state.ballInHand) {
     hud.innerHTML = `${sideBadgeHtml(state.ballInHand)} — Ball in hand, tap the table to place the cue ball`;
   } else if (isEightBallShot(state) && state.calledPocket == null) {
