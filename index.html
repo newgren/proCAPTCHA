@@ -309,7 +309,7 @@ const tryAgainBtn = document.getElementById("try-again");
 const canvas = document.getElementById("table");
 const ctx = canvas.getContext("2d");
 
-const OPPONENT_NAMES = ["Neckbeard", "xXPocketMasterXx", "Big_Chungus69", "sweatypalms", "DadBod", "Kevin_from_IT"];
+const OPPONENT_NAMES = ["Neckbeard", "xXPocketMasterXx", "CarpalTunnelKing", "Divorced_At_The_Bar", "ChalkGod420", "Uncle_Dennys_Special"];
 
 function pickOpponentName() {
   return OPPONENT_NAMES[Math.floor(Math.random() * OPPONENT_NAMES.length)];
@@ -345,6 +345,7 @@ let animation = null; // { frames, startTime }
 const MAX_PULL = 220; // table units of drag distance mapping to full power
 const REAIM_DEADZONE = 10; // table units a post-armed drag must move before it commits to
 // power pull-back vs. being read as a fresh re-aim of the aim line
+const PULL_ALIGNMENT_MIN = Math.cos(Math.PI / 4); // drag must stay within 45° of straight-back to count as a pull
 
 function cueBall(balls) {
   return balls.find((b) => b.id === "cue");
@@ -676,18 +677,22 @@ canvas.addEventListener("pointermove", (evt) => {
     const p = pointerTablePos(evt);
     const dx = p.x - pullStart.x;
     const dy = p.y - pullStart.y;
+    const dragDist = Math.hypot(dx, dy);
+    if (dragDist < REAIM_DEADZONE) {
+      // Not enough drag yet to tell a pull-back from a re-aim — hold at zero power.
+      pullPower = 0;
+      return;
+    }
     const backX = -Math.cos(aimAngle);
     const backY = -Math.sin(aimAngle);
     const pulled = dx * backX + dy * backY;
-    if (Math.hypot(dx, dy) < REAIM_DEADZONE) {
-      // Not enough drag yet to tell a pull-back from a re-aim — hold at zero power.
-      pullPower = 0;
-    } else if (pulled > 0) {
+    const alignment = pulled / dragDist; // cos(angle) between the drag and straight-back
+    if (alignment > PULL_ALIGNMENT_MIN) {
       // Genuine pull-back along the already-set aim line: this is the power gesture.
       pullPower = Math.min(1, pulled / MAX_PULL);
     } else {
-      // This drag isn't a pull-back along the aim line, so read it as a fresh
-      // re-aim instead of forcing it into the power gesture.
+      // Not a close-enough pull along the aim line (sideways, forward, or any other
+      // angle) — read it as a fresh re-aim instead of forcing it into the power gesture.
       phase = "aiming";
       pullPower = 0;
       updateAimFromPointer(evt);
@@ -699,7 +704,13 @@ canvas.addEventListener("pointerup", () => {
   if (phase === "aiming") {
     phase = "armed";
   } else if (phase === "pulling") {
-    fireShot();
+    if (pullPower > 0) {
+      fireShot();
+    } else {
+      // Released before any real pull-back was registered (e.g. a bare click/tap
+      // while re-aiming) — don't fire a phantom zero-power shot, just stay armed.
+      phase = "armed";
+    }
   }
 });
 
