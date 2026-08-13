@@ -174,17 +174,29 @@
     letter-spacing: 0.04em;
     margin-bottom: 6px;
   }
+  #table-wrap {
+    position: relative;
+  }
   #intro-banner {
-    display: table;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 24px;
     color: #fff;
-    background: var(--accent-blue);
-    font-size: 14px;
-    font-weight: 600;
+    background: rgba(20, 30, 64, 0.68);
+    font-size: 20px;
+    font-weight: 700;
     text-align: center;
-    padding: 6px 14px;
-    border-radius: 999px;
-    margin: 0 auto 8px;
+    line-height: 1.3;
+    border-radius: 8px;
+    opacity: 1;
     transition: opacity 0.4s ease;
+  }
+  #intro-banner.fade-out {
+    opacity: 0;
   }
   #intro-banner.hidden {
     display: none;
@@ -268,9 +280,11 @@
     <div id="arrow" class="hidden"></div>
     <div id="challenge-card" class="hidden">
       <div id="versus-label"></div>
-      <div id="intro-banner" class="hidden"></div>
       <div id="hud"></div>
-      <canvas id="table"></canvas>
+      <div id="table-wrap">
+        <canvas id="table"></canvas>
+        <div id="intro-banner" class="hidden"></div>
+      </div>
       <div id="result-banner" class="hidden">
         <span id="result-text"></span>
         <button id="try-again" class="hidden">Try Again</button>
@@ -323,15 +337,21 @@ function updateVersusLabel() {
   versusLabel.textContent = `You vs. ${opponentName}`;
 }
 
+const INTRO_BANNER_VISIBLE_MS = 2000;
+const INTRO_BANNER_FADE_MS = 400; // matches #intro-banner's CSS opacity transition
+
 /** Blocks table interaction while shown, so the intro moment lands before the Challenge is actually playable. */
 function showIntroBanner() {
   introBanner.textContent = `Beat ${opponentName} to verify you're human`;
-  introBanner.classList.remove("hidden");
+  introBanner.classList.remove("hidden", "fade-out");
   canvas.style.pointerEvents = "none";
   setTimeout(() => {
-    introBanner.classList.add("hidden");
-    canvas.style.pointerEvents = "auto";
-  }, 1800);
+    introBanner.classList.add("fade-out");
+    setTimeout(() => {
+      introBanner.classList.add("hidden");
+      canvas.style.pointerEvents = "auto";
+    }, INTRO_BANNER_FADE_MS);
+  }, INTRO_BANNER_VISIBLE_MS);
 }
 
 let state = createInitialState();
