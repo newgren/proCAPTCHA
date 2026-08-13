@@ -88,6 +88,10 @@ function totalSpeed(balls) {
   return balls.reduce((sum, b) => sum + (b.pocketed ? 0 : speed(b)), 0);
 }
 
+function snapshotBalls(balls) {
+  return balls.map((b) => ({ id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy, pocketed: b.pocketed, group: b.group }));
+}
+
 function applyFriction(b, dt) {
   const s = speed(b);
   if (s === 0) return;
@@ -190,9 +194,9 @@ export function simulateShot(state, shot) {
   const cue = balls.find((b) => b.id === "cue");
 
   const clampedPower = Math.max(0, Math.min(1, shot.power));
-  const sp = clampedPower * MAX_SHOT_SPEED;
-  cue.vx = Math.cos(shot.angle) * sp;
-  cue.vy = Math.sin(shot.angle) * sp;
+  const shotSpeed = clampedPower * MAX_SHOT_SPEED;
+  cue.vx = Math.cos(shot.angle) * shotSpeed;
+  cue.vy = Math.sin(shot.angle) * shotSpeed;
 
   const frames = [];
   const events = [];
@@ -238,18 +242,14 @@ export function simulateShot(state, shot) {
       }
     }
 
-    frames.push({
-      balls: balls.map((b) => ({ id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy, pocketed: b.pocketed })),
-    });
+    frames.push({ balls: snapshotBalls(balls) });
 
     if (totalSpeed(balls) < STOP_SPEED) {
       for (const b of balls) {
         b.vx = 0;
         b.vy = 0;
       }
-      frames.push({
-        balls: balls.map((b) => ({ id: b.id, x: b.x, y: b.y, vx: b.vx, vy: b.vy, pocketed: b.pocketed })),
-      });
+      frames.push({ balls: snapshotBalls(balls) });
       break;
     }
   }

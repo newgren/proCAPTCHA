@@ -220,8 +220,8 @@ function colorFor(id) {
   return n <= 8 ? BALL_COLORS[n] : BALL_COLORS[n - 8];
 }
 
-function isStripe(id) {
-  return id !== "cue" && Number(id) > 8;
+function isStripe(ball) {
+  return ball.group === "stripe";
 }
 
 function resize() {
@@ -283,13 +283,7 @@ function draw() {
     ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
     ctx.fill();
 
-    if (selectingPocket) {
-      ctx.strokeStyle = "rgba(255,220,60,0.9)";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
-      ctx.stroke();
-    } else if (state.calledPocket === i) {
+    if (selectingPocket || state.calledPocket === i) {
       ctx.strokeStyle = "rgba(255,220,60,0.9)";
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -313,7 +307,7 @@ function drawBall(b) {
   ctx.save();
   ctx.translate(b.x, b.y);
 
-  if (isStripe(b.id)) {
+  if (isStripe(b)) {
     ctx.fillStyle = "#f5f5f0";
     ctx.beginPath();
     ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
@@ -478,7 +472,32 @@ function maybeTakeComputerTurn() {
     state = callPocket(state, shot.calledPocket);
     updateHud();
   }
-  performShot({ angle: shot.angle, power: shot.power });
+  animateComputerAimAndShoot(shot);
+}
+
+/** Plays the same aim-line / power-pull-back visuals a human's gesture would produce,
+ *  so the Computer Opponent's turn reads as a real shot, not a jump-cut to ball movement. */
+function animateComputerAimAndShoot(shot) {
+  aimAngle = shot.angle;
+  phase = "aiming";
+  setTimeout(() => {
+    phase = "armed";
+    setTimeout(() => {
+      phase = "pulling";
+      const pullDurationMs = 350;
+      const start = performance.now();
+      function rampPull() {
+        const t = Math.min(1, (performance.now() - start) / pullDurationMs);
+        pullPower = t * shot.power;
+        if (t < 1) {
+          requestAnimationFrame(rampPull);
+        } else {
+          performShot({ angle: shot.angle, power: shot.power });
+        }
+      }
+      rampPull();
+    }, 150);
+  }, 350);
 }
 
 function groupLabel(group) {
