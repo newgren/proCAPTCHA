@@ -122,12 +122,13 @@ function resolveCushions(b, railHits) {
 }
 
 function resolvePocket(b) {
-  for (const pocket of POCKETS) {
+  for (let i = 0; i < POCKETS.length; i++) {
+    const pocket = POCKETS[i];
     if (Math.hypot(b.x - pocket.x, b.y - pocket.y) <= POCKET_CAPTURE_RADIUS) {
-      return true;
+      return i;
     }
   }
-  return false;
+  return -1;
 }
 
 function resolveBallCollisions(balls, contacts) {
@@ -164,7 +165,27 @@ function resolveBallCollisions(balls, contacts) {
   }
 }
 
+function groupCleared(balls, group) {
+  if (!group) return false;
+  const groupBalls = balls.filter((b) => b.group === group);
+  return groupBalls.length > 0 && groupBalls.every((b) => b.pocketed);
+}
+
 export function simulateShot(state, shot) {
+  if (state.gameOver) {
+    return { state, events: [{ type: "shotRejected", reason: "game-over" }], frames: [], shotSummary: {} };
+  }
+
+  const shooterGroup = state.groups[state.turn];
+  if (shooterGroup && groupCleared(state.balls, shooterGroup) && state.calledPocket == null) {
+    return {
+      state,
+      events: [{ type: "shotRejected", reason: "call-pocket-required" }],
+      frames: [],
+      shotSummary: {},
+    };
+  }
+
   const balls = state.balls.map((b) => ({ ...b }));
   const cue = balls.find((b) => b.id === "cue");
 
@@ -208,11 +229,12 @@ export function simulateShot(state, shot) {
 
     for (const b of balls) {
       if (b.pocketed) continue;
-      if (resolvePocket(b)) {
+      const pocketIndex = resolvePocket(b);
+      if (pocketIndex !== -1) {
         b.pocketed = true;
         b.vx = 0;
         b.vy = 0;
-        events.push({ type: "pocketed", ballId: b.id });
+        events.push({ type: "pocketed", ballId: b.id, pocketIndex });
       }
     }
 
@@ -280,8 +302,11 @@ function applyRules(prevState, newState, events, shotSummary) {
   if (cueScratched) {
     foul = "scratch";
   } else if (!wasOpen) {
+    const requiredFirstContactGroup = groupCleared(prevState.balls, shooterGroupBefore)
+      ? "eight"
+      : shooterGroupBefore;
     const firstGroup = shotSummary.firstContactBallId ? groupForBallId(shotSummary.firstContactBallId) : null;
-    if (firstGroup !== shooterGroupBefore) {
+    if (firstGroup !== requiredFirstContactGroup) {
       foul = "wrong-ball-first";
     }
   }
@@ -292,6 +317,29 @@ function applyRules(prevState, newState, events, shotSummary) {
     if (pocketedIds.length === 0 && !railOk) {
       foul = "no-rail-after-contact";
     }
+  }
+
+  const eightPocketedEvent = events.find((e) => e.type === "pocketed" && e.ballId === "8");
+  if (eightPocketedEvent) {
+    const groupWasCleared = groupCleared(prevState.balls, shooterGroupBefore);
+    let outcome;
+    if (!groupWasCleared) {
+      outcome = "early-pot";
+    } else if (foul) {
+      outcome = "foul-on-eight";
+    } else if (eightPocketedEvent.pocketIndex === prevState.calledPocket) {
+      outcome = "legal-win";
+    } else {
+      outcome = "wrong-pocket";
+    }
+
+    const winner = outcome === "legal-win" ? shooter : opponent;
+    const loser = outcome === "legal-win" ? opponent : shooter;
+    newState.turn = null;
+    newState.ballInHand = null;
+    newState.gameOver = { winner, loser, reason: outcome };
+    events.push({ type: "gameOver", winner, loser, reason: outcome });
+    return;
   }
 
   if (foul) {
@@ -327,4 +375,15 @@ export function placeCueBall(state, x, y) {
   cue.pocketed = false;
   newState.ballInHand = null;
   return newState;
+}
+
+export function callPocket(state, pocketIndex) {
+  const newState = cloneState(state);
+  newState.calledPocket = pocketIndex;
+  return newState;
+}
+
+export function isEightBallShot(state) {
+  const shooterGroup = state.groups[state.turn];
+  return Boolean(shooterGroup) && groupCleared(state.balls, shooterGroup);
 }

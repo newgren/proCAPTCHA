@@ -35,7 +35,17 @@
 <div id="hud"></div>
 <canvas id="table"></canvas>
 <script type="module">
-import { simulateShot, placeCueBall, createInitialState, TABLE, BALL_RADIUS, POCKETS, DT } from "./game.js";
+import {
+  simulateShot,
+  placeCueBall,
+  callPocket,
+  isEightBallShot,
+  createInitialState,
+  TABLE,
+  BALL_RADIUS,
+  POCKETS,
+  DT,
+} from "./game.js";
 
 const hud = document.getElementById("hud");
 
@@ -110,12 +120,27 @@ function draw() {
   ctx.lineWidth = 16;
   ctx.strokeRect(0, 0, TABLE.width, TABLE.height);
 
-  ctx.fillStyle = "#111";
-  for (const p of POCKETS) {
+  const selectingPocket = isEightBallShot(state) && state.calledPocket == null && !state.gameOver;
+  POCKETS.forEach((p, i) => {
+    ctx.fillStyle = "#111";
     ctx.beginPath();
     ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
     ctx.fill();
-  }
+
+    if (selectingPocket) {
+      ctx.strokeStyle = "rgba(255,220,60,0.9)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (state.calledPocket === i) {
+      ctx.strokeStyle = "rgba(255,220,60,0.9)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  });
 
   const balls = currentBalls();
   for (const b of balls) {
@@ -201,11 +226,34 @@ function updateAimFromPointer(evt) {
   aimAngle = Math.atan2(p.y - cue.y, p.x - cue.x);
 }
 
+function nearestPocketIndex(p, maxDist = 60) {
+  let best = -1;
+  let bestDist = Infinity;
+  POCKETS.forEach((pocket, i) => {
+    const d = Math.hypot(p.x - pocket.x, p.y - pocket.y);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  });
+  return bestDist <= maxDist ? best : -1;
+}
+
 canvas.addEventListener("pointerdown", (evt) => {
+  if (state.gameOver) return;
   if (state.ballInHand) {
     const p = pointerTablePos(evt);
     state = placeCueBall(state, p.x, p.y);
     updateHud();
+    return;
+  }
+  if (isEightBallShot(state) && state.calledPocket == null) {
+    const p = pointerTablePos(evt);
+    const idx = nearestPocketIndex(p);
+    if (idx !== -1) {
+      state = callPocket(state, idx);
+      updateHud();
+    }
     return;
   }
   if (phase === "idle") {
@@ -262,9 +310,25 @@ function groupLabel(group) {
   return "Open table";
 }
 
+const GAME_OVER_REASONS = {
+  "legal-win": "sank the 8-ball in the called pocket",
+  "wrong-pocket": "sank the 8-ball in the wrong pocket",
+  "foul-on-eight": "fouled while sinking the 8-ball",
+  "early-pot": "sank the 8-ball early",
+};
+
 function updateHud() {
+  if (state.gameOver) {
+    const { winner, reason } = state.gameOver;
+    hud.textContent = `Player ${winner} wins — Player ${state.gameOver.loser} ${GAME_OVER_REASONS[reason]}`;
+    return;
+  }
   if (state.ballInHand) {
     hud.textContent = `Player ${state.ballInHand} — Ball in hand, tap the table to place the cue ball`;
+    return;
+  }
+  if (isEightBallShot(state) && state.calledPocket == null) {
+    hud.textContent = `Player ${state.turn} — Tap a pocket to call your shot on the 8-ball`;
     return;
   }
   hud.textContent = `Player ${state.turn}'s turn — ${groupLabel(state.groups[state.turn])}`;

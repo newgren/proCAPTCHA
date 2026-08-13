@@ -1,6 +1,35 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { simulateShot, placeCueBall, createInitialState, TABLE, BALL_RADIUS } from "./game.js";
+import {
+  simulateShot,
+  placeCueBall,
+  callPocket,
+  isEightBallShot,
+  createInitialState,
+  TABLE,
+  BALL_RADIUS,
+  POCKETS,
+} from "./game.js";
+
+function clearedGroupState({ calledPocket = null } = {}) {
+  // Player A has cleared Solids; only the 8-ball remains for A.
+  const balls = [
+    { id: "cue", x: 300, y: 300, vx: 0, vy: 0, pocketed: false, group: "cue" },
+    { id: "8", x: 150, y: 150, vx: 0, vy: 0, pocketed: false, group: "eight" },
+  ];
+  for (let n = 1; n <= 7; n++) {
+    balls.push({ id: String(n), x: 900, y: 50 + n * 10, vx: 0, vy: 0, pocketed: true, group: "solid" });
+  }
+  for (let n = 9; n <= 15; n++) {
+    balls.push({ id: String(n), x: 900, y: 250 + n, vx: 0, vy: 0, pocketed: false, group: "stripe" });
+  }
+  return bareState(balls, {
+    turn: "A",
+    groups: { A: "solid", B: "stripe" },
+    tableOpen: false,
+    calledPocket,
+  });
+}
 
 function bareState(balls, overrides = {}) {
   return {
@@ -177,4 +206,88 @@ test("placeCueBall repositions the cue ball and clears Ball-in-Hand", () => {
   assert.equal(cue.y, 100);
   assert.equal(cue.pocketed, false);
   assert.equal(result.ballInHand, null);
+});
+
+test("isEightBallShot is true once a side's Group is fully cleared", () => {
+  const cleared = clearedGroupState();
+  assert.equal(isEightBallShot(cleared), true);
+
+  const notCleared = bareState(
+    [
+      { id: "cue", x: 300, y: 300, vx: 0, vy: 0, pocketed: false, group: "cue" },
+      { id: "1", x: 150, y: 150, vx: 0, vy: 0, pocketed: false, group: "solid" },
+    ],
+    { groups: { A: "solid", B: "stripe" }, tableOpen: false, turn: "A" },
+  );
+  assert.equal(isEightBallShot(notCleared), false);
+});
+
+test("a shot targeting the 8-ball is rejected without a Called Pocket", () => {
+  const state = clearedGroupState({ calledPocket: null });
+  const { state: result, events } = simulateShot(state, { angle: 0, power: 1 });
+
+  assert.strictEqual(result, state, "state should be unchanged");
+  assert.ok(events.some((e) => e.type === "shotRejected" && e.reason === "call-pocket-required"));
+});
+
+test("8-ball: Legal Win when potted in the Called Pocket with no foul", () => {
+  const pocketIndex = 0; // top-left, matches the (150,150)->(0,0) aim line
+  const state = clearedGroupState({ calledPocket: pocketIndex });
+  const angle = Math.atan2(150 - 300, 150 - 300);
+  const { state: result, events } = simulateShot(state, { angle, power: 1 });
+
+  assert.deepEqual(result.gameOver, { winner: "A", loser: "B", reason: "legal-win" });
+  assert.ok(events.some((e) => e.type === "gameOver" && e.reason === "legal-win"));
+});
+
+test("8-ball: loss when potted in the wrong (uncalled) pocket", () => {
+  const wrongPocketIndex = 5; // bottom-right — not where this shot sends the 8-ball
+  const state = clearedGroupState({ calledPocket: wrongPocketIndex });
+  const angle = Math.atan2(150 - 300, 150 - 300);
+  const { state: result, events } = simulateShot(state, { angle, power: 1 });
+
+  assert.deepEqual(result.gameOver, { winner: "B", loser: "A", reason: "wrong-pocket" });
+  assert.ok(events.some((e) => e.type === "gameOver" && e.reason === "wrong-pocket"));
+});
+
+test("8-ball: loss when fouling (scratching) on the same shot the 8-ball is potted", () => {
+  // The 8-ball starts already inside the top-left pocket's capture radius (pocketed on contact
+  // regardless of the cue's path), while the cue ball is aimed into a different pocket — this
+  // reliably produces "both pocketed in one shot" without needing spin/english in the physics model.
+  const state = clearedGroupState({ calledPocket: 0 });
+  const eight = state.balls.find((b) => b.id === "8");
+  eight.x = 15;
+  eight.y = 15;
+  const angle = Math.atan2(0 - 300, TABLE.width - 300); // toward the top-right pocket
+  const { state: result, events } = simulateShot(state, { angle, power: 1 });
+
+  assert.ok(events.some((e) => e.type === "pocketed" && e.ballId === "8"));
+  assert.ok(events.some((e) => e.type === "pocketed" && e.ballId === "cue"));
+  assert.deepEqual(result.gameOver, { winner: "B", loser: "A", reason: "foul-on-eight" });
+});
+
+test("8-ball: Early Pot is an immediate loss even with a Called Pocket set", () => {
+  const state = bareState(
+    [
+      { id: "cue", x: 300, y: 300, vx: 0, vy: 0, pocketed: false, group: "cue" },
+      { id: "8", x: 150, y: 150, vx: 0, vy: 0, pocketed: false, group: "eight" },
+      { id: "1", x: 700, y: 400, vx: 0, vy: 0, pocketed: false, group: "solid" },
+    ],
+    { groups: { A: "solid", B: "stripe" }, tableOpen: false, turn: "A", calledPocket: 0 },
+  );
+  const angle = Math.atan2(150 - 300, 150 - 300);
+  const { state: result, events } = simulateShot(state, { angle, power: 1 });
+
+  assert.deepEqual(result.gameOver, { winner: "B", loser: "A", reason: "early-pot" });
+  assert.ok(events.some((e) => e.type === "gameOver" && e.reason === "early-pot"));
+});
+
+test("a non-foul 8-ball shot that misses falls back to normal turn-passing", () => {
+  const state = clearedGroupState({ calledPocket: 0 });
+  // Aim well wide of the 8-ball and the pocket, low power so it just stops on the table after a rail bounce.
+  const { state: result, events } = simulateShot(state, { angle: Math.PI, power: 1 });
+
+  assert.equal(result.gameOver, null);
+  assert.equal(result.turn, "B");
+  assert.ok(events.some((e) => e.type === "turnPasses"));
 });
