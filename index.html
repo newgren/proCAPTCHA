@@ -293,6 +293,7 @@ import {
   POCKETS,
   DT,
 } from "./game.js";
+import { classifyReaimGesture } from "./input.js";
 
 const hud = document.getElementById("hud");
 const versusLabel = document.getElementById("versus-label");
@@ -341,11 +342,6 @@ let aimAngle = 0;
 let pullPower = 0;
 let pullStart = null;
 let animation = null; // { frames, startTime }
-
-const MAX_PULL = 220; // table units of drag distance mapping to full power
-const REAIM_DEADZONE = 10; // table units a post-armed drag must move before it commits to
-// power pull-back vs. being read as a fresh re-aim of the aim line
-const PULL_ALIGNMENT_MIN = Math.cos(Math.PI / 4); // drag must stay within 45° of straight-back to count as a pull
 
 function cueBall(balls) {
   return balls.find((b) => b.id === "cue");
@@ -664,9 +660,25 @@ canvas.addEventListener("pointerdown", (evt) => {
     phase = "aiming";
     updateAimFromPointer(evt);
   } else if (phase === "armed") {
-    phase = "pulling";
-    pullStart = pointerTablePos(evt);
-    pullPower = 0;
+    // Where this second gesture starts relative to the cue ball decides everything
+    // (ticket 13) — a start far from the cue ball is never a pull-back candidate,
+    // no matter which way it later gets dragged, so classify right away using the
+    // pointerdown position as both the gesture start and the current pointer.
+    const p = pointerTablePos(evt);
+    const cue = cueBall(state.balls);
+    const result = classifyReaimGesture({ cue, aimAngle, gestureStart: p, pointer: p });
+    if (result.type === "reaim") {
+      // Started away from the cue ball: re-enter aiming immediately, same as the
+      // original idle -> aiming gesture.
+      phase = "aiming";
+      aimAngle = result.angle;
+    } else {
+      // Started near the cue ball ("undecided" at zero movement): begin a candidate
+      // pull-back. pointermove below resolves it into a real pull or a re-aim.
+      phase = "pulling";
+      pullStart = p;
+      pullPower = 0;
+    }
   }
 });
 
@@ -675,27 +687,22 @@ canvas.addEventListener("pointermove", (evt) => {
     updateAimFromPointer(evt);
   } else if (phase === "pulling") {
     const p = pointerTablePos(evt);
-    const dx = p.x - pullStart.x;
-    const dy = p.y - pullStart.y;
-    const dragDist = Math.hypot(dx, dy);
-    if (dragDist < REAIM_DEADZONE) {
+    const cue = cueBall(state.balls);
+    const result = classifyReaimGesture({ cue, aimAngle, gestureStart: pullStart, pointer: p });
+    if (result.type === "undecided") {
       // Not enough drag yet to tell a pull-back from a re-aim — hold at zero power.
       pullPower = 0;
-      return;
-    }
-    const backX = -Math.cos(aimAngle);
-    const backY = -Math.sin(aimAngle);
-    const pulled = dx * backX + dy * backY;
-    const alignment = pulled / dragDist; // cos(angle) between the drag and straight-back
-    if (alignment > PULL_ALIGNMENT_MIN) {
-      // Genuine pull-back along the already-set aim line: this is the power gesture.
-      pullPower = Math.min(1, pulled / MAX_PULL);
+    } else if (result.type === "pull") {
+      // Genuine pull-back, started near the cue ball, along the already-set aim line:
+      // this is the power gesture.
+      pullPower = result.power;
     } else {
-      // Not a close-enough pull along the aim line (sideways, forward, or any other
-      // angle) — read it as a fresh re-aim instead of forcing it into the power gesture.
+      // Re-aim: either not aligned with straight-back, or (structurally, per ticket 13)
+      // this candidate never could have been a pull because it didn't start near the
+      // cue ball — read it as a fresh re-aim instead of forcing it into the power gesture.
       phase = "aiming";
       pullPower = 0;
-      updateAimFromPointer(evt);
+      aimAngle = result.angle;
     }
   }
 });
