@@ -8,7 +8,7 @@
   html, body {
     margin: 0;
     height: 100%;
-    background: #1b1b1b;
+    background: #eef0f3;
     overflow: hidden;
     overscroll-behavior: none;
   }
@@ -17,23 +17,156 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-family: sans-serif;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .hidden {
+    display: none !important;
+  }
+
+  #checkbox-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    width: 300px;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #d3d3d3;
+    border-radius: 3px;
+    padding: 14px 20px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+  }
+  #verify-checkbox {
+    width: 26px;
+    height: 26px;
+    margin: 0;
+    accent-color: #2a6b45;
+  }
+  #loader-checkbox {
+    width: 22px;
+    height: 22px;
+    border: 3px solid #ccc;
+    border-top-color: #2a6b45;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  #checkmark {
+    font-size: 22px;
+    color: #2a6b45;
+    font-weight: bold;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .checkbox-text {
+    flex: 1;
+    font-size: 14px;
+    color: #222;
+  }
+  .widget-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .widget-brand .wordmark {
+    font-size: 8px;
+    letter-spacing: 0.02em;
+    color: #999;
+    text-transform: uppercase;
+  }
+
+  #challenge-wrap {
+    position: relative;
+    margin-top: 8px;
+  }
+  #arrow {
+    position: absolute;
+    top: -7px;
+    left: 32px;
+    width: 12px;
+    height: 12px;
+    background: #1b1b1b;
+    border-top: 1px solid #444;
+    border-left: 1px solid #444;
+    transform: rotate(45deg);
+  }
+  #challenge-card {
+    background: #1b1b1b;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: min(92vw, 640px);
+    box-sizing: border-box;
   }
   #hud {
     color: #eee;
-    font-size: 15px;
+    font-size: 14px;
     min-height: 1.2em;
+    text-align: center;
+    margin-bottom: 6px;
   }
   #table {
     touch-action: none;
     display: block;
   }
+  #result-banner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #eee;
+    font-size: 15px;
+    text-align: center;
+    margin-top: 10px;
+  }
+  #try-again {
+    font-size: 14px;
+    padding: 8px 18px;
+    border-radius: 4px;
+    border: none;
+    background: #2a6b45;
+    color: #fff;
+    cursor: pointer;
+  }
+  #try-again:hover {
+    background: #35803f;
+  }
 </style>
 </head>
 <body>
-<div id="hud"></div>
-<canvas id="table"></canvas>
+<div id="wrapper">
+  <label id="checkbox-card">
+    <input type="checkbox" id="verify-checkbox" />
+    <div id="loader-checkbox" class="hidden"></div>
+    <div id="checkmark" class="hidden">&#10003;</div>
+    <span class="checkbox-text">I'm not a robot</span>
+    <div class="widget-brand">
+      <svg width="30" height="30" viewBox="0 0 40 40">
+        <path d="M20,20 L38,20 A18,18 0 0,1 20,38 Z" fill="#2a9d8f" />
+        <path d="M20,20 L20,38 A18,18 0 0,1 2,20 Z" fill="#7b4fd1" />
+        <path d="M20,20 L2,20 A18,18 0 0,1 20,2 Z" fill="#e08a2a" />
+        <path d="M20,20 L20,2 A18,18 0 0,1 38,20 Z" fill="#3f8f3f" />
+      </svg>
+      <div class="wordmark">poolCAPTCHA</div>
+    </div>
+  </label>
+
+  <div id="challenge-wrap">
+    <div id="arrow" class="hidden"></div>
+    <div id="challenge-card" class="hidden">
+      <div id="hud"></div>
+      <canvas id="table"></canvas>
+      <div id="result-banner" class="hidden">
+        <span id="result-text"></span>
+        <button id="try-again" class="hidden">Try Again</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script type="module">
 import {
   simulateShot,
@@ -49,6 +182,14 @@ import {
 } from "./game.js";
 
 const hud = document.getElementById("hud");
+const verifyCheckbox = document.getElementById("verify-checkbox");
+const loaderCheckbox = document.getElementById("loader-checkbox");
+const checkmark = document.getElementById("checkmark");
+const arrow = document.getElementById("arrow");
+const challengeCard = document.getElementById("challenge-card");
+const resultBanner = document.getElementById("result-banner");
+const resultText = document.getElementById("result-text");
+const tryAgainBtn = document.getElementById("try-again");
 
 const canvas = document.getElementById("table");
 const ctx = canvas.getContext("2d");
@@ -84,9 +225,11 @@ function isStripe(id) {
 }
 
 function resize() {
-  const margin = 24;
-  const availW = window.innerWidth - margin * 2;
-  const availH = window.innerHeight - margin * 2;
+  if (challengeCard.classList.contains("hidden")) return;
+
+  const cardPadding = 20; // 10px padding each side, from #challenge-card CSS
+  const availW = challengeCard.clientWidth - cardPadding;
+  const availH = window.innerHeight * 0.7;
   const aspect = TABLE.width / TABLE.height;
   let cssW = availW;
   let cssH = cssW / aspect;
@@ -102,7 +245,19 @@ function resize() {
   ctx.setTransform(dpr * (cssW / TABLE.width), 0, 0, dpr * (cssH / TABLE.height), 0, 0);
 }
 window.addEventListener("resize", resize);
-resize();
+
+let started = false;
+verifyCheckbox.addEventListener("input", () => {
+  if (started) return;
+  started = true;
+  verifyCheckbox.classList.add("hidden");
+  loaderCheckbox.classList.remove("hidden");
+  setTimeout(() => {
+    arrow.classList.remove("hidden");
+    challengeCard.classList.remove("hidden");
+    resize();
+  }, 500);
+});
 
 function pointerTablePos(evt) {
   const rect = canvas.getBoundingClientRect();
@@ -347,26 +502,57 @@ function updateHud() {
   if (state.gameOver) {
     const { winner, loser, reason } = state.gameOver;
     hud.textContent = `${sideLabel(winner)} won — ${sideLabel(loser)} ${GAME_OVER_REASONS[reason]}`;
-    return;
-  }
-  if (state.ballInHand) {
+  } else if (state.ballInHand) {
     hud.textContent = `${sideLabel(state.ballInHand)} — Ball in hand, tap the table to place the cue ball`;
-    return;
-  }
-  if (isEightBallShot(state) && state.calledPocket == null) {
+  } else if (isEightBallShot(state) && state.calledPocket == null) {
     hud.textContent = `${sideLabel(state.turn)} — Tap a pocket to call the shot on the 8-ball`;
+  } else {
+    hud.textContent = `${sideLabel(state.turn)} — ${groupLabel(state.groups[state.turn])}`;
+  }
+  updateWidgetResult();
+}
+
+function updateWidgetResult() {
+  if (!state.gameOver) {
+    resultBanner.classList.add("hidden");
+    tryAgainBtn.classList.add("hidden");
+    canvas.style.pointerEvents = "auto";
     return;
   }
-  hud.textContent = `${sideLabel(state.turn)} — ${groupLabel(state.groups[state.turn])}`;
+
+  canvas.style.pointerEvents = "none";
+  resultBanner.classList.remove("hidden");
+
+  if (state.gameOver.winner === "A") {
+    loaderCheckbox.classList.add("hidden");
+    checkmark.classList.remove("hidden");
+    resultText.textContent = "Verified — you beat the Computer at pool.";
+    tryAgainBtn.classList.add("hidden");
+  } else {
+    resultText.textContent = "Verification failed — the Computer won.";
+    tryAgainBtn.classList.remove("hidden");
+  }
 }
-updateHud();
-maybeTakeComputerTurn();
+
+tryAgainBtn.addEventListener("click", () => {
+  state = createInitialState();
+  phase = "idle";
+  animation = null;
+  pullPower = 0;
+  checkmark.classList.add("hidden");
+  loaderCheckbox.classList.remove("hidden");
+  updateHud();
+  maybeTakeComputerTurn();
+});
 
 function loop() {
   draw();
   requestAnimationFrame(loop);
 }
 loop();
+
+updateHud();
+maybeTakeComputerTurn();
 </script>
 </body>
 </html>
