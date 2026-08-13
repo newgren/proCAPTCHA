@@ -16,7 +16,7 @@ export const POCKETS = [
 
 const CUSHION_RESTITUTION = 0.82;
 const FRICTION_DECEL = 230; // units/s^2
-const MAX_SHOT_SPEED = 900;
+const MAX_SHOT_SPEED = 1260; // was 900; +40% per ticket 08
 const STOP_SPEED = 3;
 export const DT = 1 / 120;
 const MAX_STEPS = 900;

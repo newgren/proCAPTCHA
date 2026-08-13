@@ -5,6 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Pool CAPTCHA</title>
 <style>
+  :root {
+    --accent-yellow: #d4b106;
+    --accent-blue: #1e50d1;
+    --accent-red: #d1231e;
+    --accent-purple: #7a1ed1;
+    --accent-green: #1e8a3d;
+    --text-primary: #202124;
+    --text-secondary: #5f6368;
+    --surface: #ffffff;
+    --surface-alt: #f3f5fb;
+    --border: #dfe1e5;
+    --shadow-sm: 0 1px 2px rgba(32, 33, 36, 0.16), 0 1px 3px rgba(32, 33, 36, 0.08);
+    --shadow-md: 0 2px 6px rgba(32, 33, 36, 0.16), 0 4px 16px rgba(32, 33, 36, 0.1);
+    --radius: 14px;
+  }
   html, body {
     margin: 0;
     background: #fff;
@@ -71,11 +86,11 @@
     gap: 18px;
     width: 300px;
     box-sizing: border-box;
-    background: #fff;
-    border: 1px solid #d3d3d3;
-    border-radius: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
     padding: 14px 20px;
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
     position: relative;
     z-index: 1;
@@ -84,19 +99,25 @@
     width: 26px;
     height: 26px;
     margin: 0;
-    accent-color: #2a6b45;
+    accent-color: var(--accent-green);
   }
   #loader-checkbox {
     width: 22px;
     height: 22px;
-    border: 3px solid #ccc;
-    border-top-color: #2a6b45;
     border-radius: 50%;
+    background: conic-gradient(
+      var(--accent-yellow) 0deg 90deg,
+      var(--accent-blue) 90deg 180deg,
+      var(--accent-red) 180deg 270deg,
+      var(--accent-purple) 270deg 360deg
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
     animation: spin 0.9s linear infinite;
   }
   #checkmark {
     font-size: 22px;
-    color: #2a6b45;
+    color: var(--accent-green);
     font-weight: bold;
   }
   @keyframes spin {
@@ -105,7 +126,7 @@
   .checkbox-text {
     flex: 1;
     font-size: 14px;
-    color: #222;
+    color: var(--text-primary);
   }
   .widget-brand {
     display: flex;
@@ -116,7 +137,7 @@
   .widget-brand .wordmark {
     font-size: 8px;
     letter-spacing: 0.02em;
-    color: #999;
+    color: var(--text-secondary);
     text-transform: uppercase;
   }
 
@@ -130,52 +151,89 @@
     left: 32px;
     width: 12px;
     height: 12px;
-    background: #1b1b1b;
-    border-top: 1px solid #444;
-    border-left: 1px solid #444;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border);
     transform: rotate(45deg);
   }
   #challenge-card {
-    background: #1b1b1b;
-    border: 1px solid #444;
-    border-radius: 6px;
-    padding: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: var(--shadow-md);
     width: min(92vw, 640px);
     box-sizing: border-box;
   }
-  #hud {
-    color: #eee;
+  #versus-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  #intro-banner {
+    display: table;
+    color: #fff;
+    background: var(--accent-blue);
     font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin: 0 auto 8px;
+    transition: opacity 0.4s ease;
+  }
+  #intro-banner.hidden {
+    display: none;
+  }
+  #hud {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
     min-height: 1.2em;
     text-align: center;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+  }
+  .side-you {
+    color: var(--accent-blue);
+    font-weight: 700;
+  }
+  .side-opp {
+    color: var(--accent-red);
+    font-weight: 700;
   }
   #table {
     touch-action: none;
     display: block;
+    border-radius: 8px;
   }
   #result-banner {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    color: #eee;
+    color: var(--text-primary);
     font-size: 15px;
+    font-weight: 500;
     text-align: center;
     margin-top: 10px;
   }
   #try-again {
     font-size: 14px;
+    font-weight: 600;
     padding: 8px 18px;
-    border-radius: 4px;
+    border-radius: 999px;
     border: none;
-    background: #2a6b45;
+    background: var(--accent-blue);
     color: #fff;
     cursor: pointer;
+    box-shadow: var(--shadow-sm);
   }
   #try-again:hover {
-    background: #35803f;
+    background: #1740ad;
   }
 </style>
 </head>
@@ -197,10 +255,10 @@
     <span class="checkbox-text">I'm not a robot</span>
     <div class="widget-brand">
       <svg width="30" height="30" viewBox="0 0 40 40">
-        <path d="M20,20 L38,20 A18,18 0 0,1 20,38 Z" fill="#2a9d8f" />
-        <path d="M20,20 L20,38 A18,18 0 0,1 2,20 Z" fill="#7b4fd1" />
-        <path d="M20,20 L2,20 A18,18 0 0,1 20,2 Z" fill="#e08a2a" />
-        <path d="M20,20 L20,2 A18,18 0 0,1 38,20 Z" fill="#3f8f3f" />
+        <path d="M20,20 L38,20 A18,18 0 0,1 20,38 Z" fill="#d4b106" />
+        <path d="M20,20 L20,38 A18,18 0 0,1 2,20 Z" fill="#1e50d1" />
+        <path d="M20,20 L2,20 A18,18 0 0,1 20,2 Z" fill="#d1231e" />
+        <path d="M20,20 L20,2 A18,18 0 0,1 38,20 Z" fill="#7a1ed1" />
       </svg>
       <div class="wordmark">poolCAPTCHA</div>
     </div>
@@ -209,6 +267,8 @@
   <div id="challenge-wrap">
     <div id="arrow" class="hidden"></div>
     <div id="challenge-card" class="hidden">
+      <div id="versus-label"></div>
+      <div id="intro-banner" class="hidden"></div>
       <div id="hud"></div>
       <canvas id="table"></canvas>
       <div id="result-banner" class="hidden">
@@ -235,6 +295,8 @@ import {
 } from "./game.js";
 
 const hud = document.getElementById("hud");
+const versusLabel = document.getElementById("versus-label");
+const introBanner = document.getElementById("intro-banner");
 const verifyCheckbox = document.getElementById("verify-checkbox");
 const loaderCheckbox = document.getElementById("loader-checkbox");
 const checkmark = document.getElementById("checkmark");
@@ -246,6 +308,30 @@ const tryAgainBtn = document.getElementById("try-again");
 
 const canvas = document.getElementById("table");
 const ctx = canvas.getContext("2d");
+
+const OPPONENT_NAMES = ["Neckbeard", "xXPocketMasterXx", "Big_Chungus69", "sweatypalms", "DadBod", "Kevin_from_IT"];
+
+function pickOpponentName() {
+  return OPPONENT_NAMES[Math.floor(Math.random() * OPPONENT_NAMES.length)];
+}
+
+/** Re-rolled once per Challenge (initial load and each "Try Again"); stays fixed for the rest of that game. */
+let opponentName = pickOpponentName();
+
+function updateVersusLabel() {
+  versusLabel.textContent = `You vs. ${opponentName}`;
+}
+
+/** Blocks table interaction while shown, so the intro moment lands before the Challenge is actually playable. */
+function showIntroBanner() {
+  introBanner.textContent = `Beat ${opponentName} to verify you're human`;
+  introBanner.classList.remove("hidden");
+  canvas.style.pointerEvents = "none";
+  setTimeout(() => {
+    introBanner.classList.add("hidden");
+    canvas.style.pointerEvents = "auto";
+  }, 1800);
+}
 
 let state = createInitialState();
 
@@ -313,6 +399,8 @@ verifyCheckbox.addEventListener("input", () => {
     arrow.classList.remove("hidden");
     challengeCard.classList.remove("hidden");
     resize();
+    updateVersusLabel();
+    showIntroBanner();
   }, 500);
 });
 
@@ -327,18 +415,27 @@ function pointerTablePos(evt) {
 function draw() {
   ctx.clearRect(0, 0, TABLE.width, TABLE.height);
 
-  ctx.fillStyle = "#0f6b3c";
+  ctx.fillStyle = "#4a72e0";
   ctx.fillRect(0, 0, TABLE.width, TABLE.height);
-  ctx.strokeStyle = "#5a3a22";
+
+  ctx.save();
+  ctx.shadowColor = "rgba(32, 33, 36, 0.35)";
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = "#2c4faa";
   ctx.lineWidth = 16;
   ctx.strokeRect(0, 0, TABLE.width, TABLE.height);
+  ctx.restore();
 
   const selectingPocket = isEightBallShot(state) && state.calledPocket == null && !state.gameOver;
   POCKETS.forEach((p, i) => {
-    ctx.fillStyle = "#111";
+    ctx.save();
+    ctx.shadowColor = "rgba(32, 33, 36, 0.4)";
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = "#202124";
     ctx.beginPath();
     ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 
     if (selectingPocket || state.calledPocket === i) {
       ctx.strokeStyle = "rgba(255,220,60,0.9)";
@@ -364,11 +461,17 @@ function drawBall(b) {
   ctx.save();
   ctx.translate(b.x, b.y);
 
+  ctx.save();
+  ctx.shadowColor = "rgba(32, 33, 36, 0.35)";
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = isStripe(b) ? "#f5f5f0" : colorFor(b.id);
+  ctx.beginPath();
+  ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
   if (isStripe(b)) {
-    ctx.fillStyle = "#f5f5f0";
-    ctx.beginPath();
-    ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
     ctx.save();
     ctx.beginPath();
     ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
@@ -376,11 +479,6 @@ function drawBall(b) {
     ctx.fillStyle = colorFor(b.id);
     ctx.fillRect(-BALL_RADIUS, -BALL_RADIUS * 0.45, BALL_RADIUS * 2, BALL_RADIUS * 0.9);
     ctx.restore();
-  } else {
-    ctx.fillStyle = colorFor(b.id);
-    ctx.beginPath();
-    ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   if (b.id !== "cue") {
@@ -564,7 +662,12 @@ function groupLabel(group) {
 }
 
 function sideLabel(side) {
-  return side === "A" ? "You" : "Computer";
+  return side === "A" ? "You" : opponentName;
+}
+
+function sideBadgeHtml(side) {
+  const cls = side === "A" ? "side-you" : "side-opp";
+  return `<span class="${cls}">${sideLabel(side)}</span>`;
 }
 
 const GAME_OVER_REASONS = {
@@ -577,13 +680,13 @@ const GAME_OVER_REASONS = {
 function updateHud() {
   if (state.gameOver) {
     const { winner, loser, reason } = state.gameOver;
-    hud.textContent = `${sideLabel(winner)} won — ${sideLabel(loser)} ${GAME_OVER_REASONS[reason]}`;
+    hud.innerHTML = `${sideBadgeHtml(winner)} won — ${sideBadgeHtml(loser)} ${GAME_OVER_REASONS[reason]}`;
   } else if (state.ballInHand) {
-    hud.textContent = `${sideLabel(state.ballInHand)} — Ball in hand, tap the table to place the cue ball`;
+    hud.innerHTML = `${sideBadgeHtml(state.ballInHand)} — Ball in hand, tap the table to place the cue ball`;
   } else if (isEightBallShot(state) && state.calledPocket == null) {
-    hud.textContent = `${sideLabel(state.turn)} — Tap a pocket to call the shot on the 8-ball`;
+    hud.innerHTML = `${sideBadgeHtml(state.turn)} — Tap a pocket to call the shot on the 8-ball`;
   } else {
-    hud.textContent = `${sideLabel(state.turn)} — ${groupLabel(state.groups[state.turn])}`;
+    hud.innerHTML = `${sideBadgeHtml(state.turn)} — ${groupLabel(state.groups[state.turn])}`;
   }
   updateWidgetResult();
 }
@@ -602,22 +705,25 @@ function updateWidgetResult() {
   if (state.gameOver.winner === "A") {
     loaderCheckbox.classList.add("hidden");
     checkmark.classList.remove("hidden");
-    resultText.textContent = "Verified — you beat the Computer at pool.";
+    resultText.textContent = `Verified — you beat ${opponentName} at pool.`;
     tryAgainBtn.classList.add("hidden");
   } else {
-    resultText.textContent = "Verification failed — the Computer won.";
+    resultText.textContent = `Verification failed — ${opponentName} won.`;
     tryAgainBtn.classList.remove("hidden");
   }
 }
 
 tryAgainBtn.addEventListener("click", () => {
   state = createInitialState();
+  opponentName = pickOpponentName();
   phase = "idle";
   animation = null;
   pullPower = 0;
   checkmark.classList.add("hidden");
   loaderCheckbox.classList.remove("hidden");
+  updateVersusLabel();
   updateHud();
+  showIntroBanner();
   maybeTakeComputerTurn();
 });
 
