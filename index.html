@@ -343,6 +343,8 @@ let pullStart = null;
 let animation = null; // { frames, startTime }
 
 const MAX_PULL = 220; // table units of drag distance mapping to full power
+const REAIM_DEADZONE = 10; // table units a post-armed drag must move before it commits to
+// power pull-back vs. being read as a fresh re-aim of the aim line
 
 function cueBall(balls) {
   return balls.find((b) => b.id === "cue");
@@ -580,8 +582,20 @@ canvas.addEventListener("pointermove", (evt) => {
     const dy = p.y - pullStart.y;
     const backX = -Math.cos(aimAngle);
     const backY = -Math.sin(aimAngle);
-    const pulled = Math.max(0, dx * backX + dy * backY);
-    pullPower = Math.min(1, pulled / MAX_PULL);
+    const pulled = dx * backX + dy * backY;
+    if (Math.hypot(dx, dy) < REAIM_DEADZONE) {
+      // Not enough drag yet to tell a pull-back from a re-aim — hold at zero power.
+      pullPower = 0;
+    } else if (pulled > 0) {
+      // Genuine pull-back along the already-set aim line: this is the power gesture.
+      pullPower = Math.min(1, pulled / MAX_PULL);
+    } else {
+      // This drag isn't a pull-back along the aim line, so read it as a fresh
+      // re-aim instead of forcing it into the power gesture.
+      phase = "aiming";
+      pullPower = 0;
+      updateAimFromPointer(evt);
+    }
   }
 });
 
