@@ -462,14 +462,9 @@ function pointerTablePos(evt) {
 // punches a hole through it so the rail visibly curves around the pocket mouth
 // instead of a plain rectangle with a circle floating on top (ticket 11).
 const RAIL_COLOR = "#2c4faa";
-const RAIL_WIDTH = 44;
+const RAIL_WIDTH = 28;
 const RAIL_OUTER_CORNER_RADIUS = 10;
 const RAIL_INNER_CORNER_RADIUS = 6;
-
-// Bevel tints for the rail's raised-cushion shading (ticket 14) — same blue family
-// as RAIL_COLOR, just lightened/darkened, so the frame reads as rounded rather than flat.
-const RAIL_HIGHLIGHT_COLOR = "#7699e6";
-const RAIL_SHADOW_COLOR = "#152a63";
 
 // Corner pockets read larger/more open than side (middle-rail) pockets, matching
 // a real table's proportions.
@@ -517,34 +512,11 @@ function drawRailAndPockets() {
   railFrame.addPath(outerRect);
   railFrame.addPath(innerRect);
 
-  // Bevel shading (ticket 14): a diagonal highlight-to-shadow gradient across the whole
-  // frame, in the same blue family as RAIL_COLOR, so the rail reads as a raised, rounded
-  // cushion (light upper-left) instead of a flat-painted band.
-  const bevel = ctx.createLinearGradient(0, 0, TABLE.width, TABLE.height);
-  bevel.addColorStop(0, RAIL_HIGHLIGHT_COLOR);
-  bevel.addColorStop(0.5, RAIL_COLOR);
-  bevel.addColorStop(1, RAIL_SHADOW_COLOR);
-
   ctx.save();
   ctx.shadowColor = "rgba(32, 33, 36, 0.35)";
   ctx.shadowBlur = 10;
-  ctx.fillStyle = bevel;
+  ctx.fillStyle = RAIL_COLOR;
   ctx.fill(railFrame, "evenodd");
-  ctx.restore();
-
-  // Outer-edge highlight: the raised cushion's crest catching light before it falls
-  // away to the table apron.
-  ctx.save();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
-  ctx.lineWidth = 2;
-  ctx.stroke(outerRect);
-  ctx.restore();
-
-  // Inner-edge shadow: the cushion curving back down to meet the felt.
-  ctx.save();
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
-  ctx.lineWidth = 3;
-  ctx.stroke(innerRect);
   ctx.restore();
 
   // Raised-cushion highlight where the rail meets the felt.
@@ -568,13 +540,10 @@ function drawRailAndPockets() {
 }
 
 function drawPocketMouth(p, g) {
-  // Near-solid black (ticket 14): hold near-black through most of the radius and only
-  // brighten sharply in the last ~10-15%, instead of graduating up to a visible mid-gray
-  // rim — a much higher-contrast "hole" than the previous soft graduation.
   const gradient = ctx.createRadialGradient(p.x, p.y, g.mouth * 0.15, p.x, p.y, g.mouth);
-  gradient.addColorStop(0, "#050506");
-  gradient.addColorStop(0.85, "#0a0b0d");
-  gradient.addColorStop(1, "#18191d");
+  gradient.addColorStop(0, "#0a0b0d");
+  gradient.addColorStop(0.7, "#1b1d21");
+  gradient.addColorStop(1, "#303338");
 
   ctx.save();
   ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
@@ -586,12 +555,11 @@ function drawPocketMouth(p, g) {
   ctx.restore();
 
   // Rim highlight on the felt-facing side of the mouth, suggesting the cloth-covered
-  // jaw catching light as it curves down into the pocket. Made crisper/brighter than
-  // before so it still reads clearly against the darker mouth fill.
+  // jaw catching light as it curves down into the pocket.
   const towardCenter = angleTowardTableCenter(p);
   ctx.save();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.32)";
-  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(p.x, p.y, g.mouth - 2, towardCenter - Math.PI / 2.4, towardCenter + Math.PI / 2.4);
   ctx.stroke();
@@ -654,25 +622,6 @@ function drawBall(b) {
     ctx.fillRect(-BALL_RADIUS, -BALL_RADIUS * 0.45, BALL_RADIUS * 2, BALL_RADIUS * 0.9);
     ctx.restore();
   }
-
-  // Spherical gloss highlight (ticket 14): a small bright radial highlight offset toward
-  // the upper-left, blended over the base fill and fading into it, suggesting a light
-  // source and a glossy sphere rather than a flat-shaded circle. No new drop shadow —
-  // the existing shadow above this block is untouched. Drawn before the number badge so
-  // the badge (painted next, opaque) stays fully legible on top of it.
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
-  ctx.clip();
-  const glossX = -BALL_RADIUS * 0.35;
-  const glossY = -BALL_RADIUS * 0.4;
-  const gloss = ctx.createRadialGradient(glossX, glossY, 0, glossX, glossY, BALL_RADIUS * 0.95);
-  gloss.addColorStop(0, "rgba(255, 255, 255, 0.85)");
-  gloss.addColorStop(0.35, "rgba(255, 255, 255, 0.22)");
-  gloss.addColorStop(1, "rgba(255, 255, 255, 0)");
-  ctx.fillStyle = gloss;
-  ctx.fillRect(-BALL_RADIUS, -BALL_RADIUS, BALL_RADIUS * 2, BALL_RADIUS * 2);
-  ctx.restore();
 
   if (b.id !== "cue") {
     ctx.beginPath();
