@@ -14,8 +14,16 @@
   }
   body {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 8px;
+    font-family: sans-serif;
+  }
+  #hud {
+    color: #eee;
+    font-size: 15px;
+    min-height: 1.2em;
   }
   #table {
     touch-action: none;
@@ -24,9 +32,12 @@
 </style>
 </head>
 <body>
+<div id="hud"></div>
 <canvas id="table"></canvas>
 <script type="module">
-import { simulateShot, createInitialState, TABLE, BALL_RADIUS, POCKETS, DT } from "./game.js";
+import { simulateShot, placeCueBall, createInitialState, TABLE, BALL_RADIUS, POCKETS, DT } from "./game.js";
+
+const hud = document.getElementById("hud");
 
 const canvas = document.getElementById("table");
 const ctx = canvas.getContext("2d");
@@ -191,6 +202,12 @@ function updateAimFromPointer(evt) {
 }
 
 canvas.addEventListener("pointerdown", (evt) => {
+  if (state.ballInHand) {
+    const p = pointerTablePos(evt);
+    state = placeCueBall(state, p.x, p.y);
+    updateHud();
+    return;
+  }
   if (phase === "idle") {
     phase = "aiming";
     updateAimFromPointer(evt);
@@ -235,8 +252,24 @@ function fireShot() {
     animation = null;
     phase = "idle";
     pullPower = 0;
+    updateHud();
   }, totalDuration);
 }
+
+function groupLabel(group) {
+  if (group === "solid") return "Solids";
+  if (group === "stripe") return "Stripes";
+  return "Open table";
+}
+
+function updateHud() {
+  if (state.ballInHand) {
+    hud.textContent = `Player ${state.ballInHand} — Ball in hand, tap the table to place the cue ball`;
+    return;
+  }
+  hud.textContent = `Player ${state.turn}'s turn — ${groupLabel(state.groups[state.turn])}`;
+}
+updateHud();
 
 function loop() {
   draw();

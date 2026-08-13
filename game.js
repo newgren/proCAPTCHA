@@ -15,7 +15,7 @@ export const POCKETS = [
 ];
 
 const CUSHION_RESTITUTION = 0.82;
-const FRICTION_DECEL = 420; // units/s^2
+const FRICTION_DECEL = 230; // units/s^2
 const MAX_SHOT_SPEED = 900;
 const STOP_SPEED = 3;
 export const DT = 1 / 120;
@@ -235,10 +235,96 @@ export function simulateShot(state, shot) {
   const newState = cloneState(state);
   newState.balls = balls;
 
+  applyRules(state, newState, events, {
+    firstContactBallId,
+    railContactAfterFirstContact,
+    anyRailContact,
+  });
+
   return {
     state: newState,
     events,
     frames,
     shotSummary: { firstContactBallId, railContactAfterFirstContact, anyRailContact },
   };
+}
+
+function otherSide(side) {
+  return side === "A" ? "B" : "A";
+}
+
+function applyRules(prevState, newState, events, shotSummary) {
+  const shooter = prevState.turn;
+  const opponent = otherSide(shooter);
+  const wasOpen = prevState.tableOpen;
+  const shooterGroupBefore = prevState.groups[shooter];
+
+  const pocketedIds = events.filter((e) => e.type === "pocketed").map((e) => e.ballId);
+  const cueScratched = pocketedIds.includes("cue");
+  const legallyPocketedGroupBalls = pocketedIds.filter((id) => id !== "cue" && id !== "8");
+
+  newState.calledPocket = null;
+
+  if (wasOpen && legallyPocketedGroupBalls.length > 0) {
+    const distinctGroups = new Set(legallyPocketedGroupBalls.map((id) => groupForBallId(id)));
+    if (distinctGroups.size === 1) {
+      const assigned = [...distinctGroups][0];
+      newState.groups[shooter] = assigned;
+      newState.groups[opponent] = assigned === "solid" ? "stripe" : "solid";
+      newState.tableOpen = false;
+      events.push({ type: "groupsAssigned", groups: { ...newState.groups } });
+    }
+  }
+
+  let foul = null;
+  if (cueScratched) {
+    foul = "scratch";
+  } else if (!wasOpen) {
+    const firstGroup = shotSummary.firstContactBallId ? groupForBallId(shotSummary.firstContactBallId) : null;
+    if (firstGroup !== shooterGroupBefore) {
+      foul = "wrong-ball-first";
+    }
+  }
+  if (!foul) {
+    const railOk = shotSummary.firstContactBallId
+      ? shotSummary.railContactAfterFirstContact
+      : shotSummary.anyRailContact;
+    if (pocketedIds.length === 0 && !railOk) {
+      foul = "no-rail-after-contact";
+    }
+  }
+
+  if (foul) {
+    events.push({ type: "foul", reason: foul });
+    events.push({ type: "ballInHand", side: opponent });
+    newState.turn = opponent;
+    newState.ballInHand = opponent;
+    events.push({ type: "turnPasses", from: shooter, to: opponent });
+    return;
+  }
+
+  const shooterGroupNow = newState.groups[shooter];
+  const pocketedOwn = legallyPocketedGroupBalls.some((id) => groupForBallId(id) === shooterGroupNow);
+  const legalContinue = newState.tableOpen ? legallyPocketedGroupBalls.length > 0 : pocketedOwn;
+
+  newState.ballInHand = null;
+  if (legalContinue) {
+    newState.turn = shooter;
+    events.push({ type: "turnContinues", side: shooter });
+  } else {
+    newState.turn = opponent;
+    events.push({ type: "turnPasses", from: shooter, to: opponent });
+  }
+}
+
+export function placeCueBall(state, x, y) {
+  const newState = cloneState(state);
+  const cue = newState.balls.find((b) => b.id === "cue");
+  cue.x = Math.max(BALL_RADIUS, Math.min(TABLE.width - BALL_RADIUS, x));
+  cue.y = Math.max(BALL_RADIUS, Math.min(TABLE.height - BALL_RADIUS, y));
+  cue.vx = 0;
+  cue.vy = 0;
+  cue.pocketed = false;
+  newState.ballInHand = null;
+  return newState;
 }

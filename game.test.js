@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { simulateShot, createInitialState, TABLE, BALL_RADIUS } from "./game.js";
+import { simulateShot, placeCueBall, createInitialState, TABLE, BALL_RADIUS } from "./game.js";
 
-function bareState(balls) {
+function bareState(balls, overrides = {}) {
   return {
     balls,
     turn: "A",
@@ -11,6 +11,7 @@ function bareState(balls) {
     ballInHand: null,
     calledPocket: null,
     gameOver: null,
+    ...overrides,
   };
 }
 
@@ -83,4 +84,97 @@ test("pocket capture: an object ball hit toward a pocket is removed from play", 
   const obj = result.balls.find((b) => b.id === "1");
   assert.equal(obj.pocketed, true);
   assert.ok(events.some((e) => e.type === "pocketed" && e.ballId === "1"));
+});
+
+test("group assignment: first legal pot on an open table assigns Groups to both sides", () => {
+  const state = bareState([
+    { id: "cue", x: 300, y: 300, vx: 0, vy: 0, pocketed: false, group: "cue" },
+    { id: "1", x: 150, y: 150, vx: 0, vy: 0, pocketed: false, group: "solid" },
+  ]);
+  const angle = Math.atan2(150 - 300, 150 - 300);
+  const { state: result, events } = simulateShot(state, { angle, power: 1 });
+
+  assert.equal(result.groups.A, "solid");
+  assert.equal(result.groups.B, "stripe");
+  assert.equal(result.tableOpen, false);
+  assert.ok(events.some((e) => e.type === "groupsAssigned"));
+});
+
+test("foul: scratch grants the opponent Ball-in-Hand and passes the turn", () => {
+  const state = bareState([
+    { id: "cue", x: 150, y: 150, vx: 0, vy: 0, pocketed: false, group: "cue" },
+  ]);
+  const angle = Math.atan2(0 - 150, 0 - 150);
+  const { state: result, events } = simulateShot(state, { angle, power: 1 });
+
+  assert.ok(events.some((e) => e.type === "foul" && e.reason === "scratch"));
+  assert.equal(result.turn, "B");
+  assert.equal(result.ballInHand, "B");
+});
+
+test("foul: contacting the opponent's Group first is a foul once Groups are assigned", () => {
+  const state = bareState(
+    [
+      { id: "cue", x: 200, y: 250, vx: 0, vy: 0, pocketed: false, group: "cue" },
+      { id: "9", x: 400, y: 250, vx: 0, vy: 0, pocketed: false, group: "stripe" },
+    ],
+    { groups: { A: "solid", B: "stripe" }, tableOpen: false, turn: "A" },
+  );
+  const { state: result, events } = simulateShot(state, { angle: 0, power: 0.7 });
+
+  assert.ok(events.some((e) => e.type === "foul" && e.reason === "wrong-ball-first"));
+  assert.equal(result.turn, "B");
+  assert.equal(result.ballInHand, "B");
+});
+
+test("foul: no rail contact after contact, with nothing pocketed, is a foul", () => {
+  const state = bareState([
+    { id: "cue", x: 300, y: 250, vx: 0, vy: 0, pocketed: false, group: "cue" },
+    { id: "1", x: 335, y: 250, vx: 0, vy: 0, pocketed: false, group: "solid" },
+  ]);
+  const { state: result, events } = simulateShot(state, { angle: 0, power: 0.15 });
+
+  assert.ok(events.some((e) => e.type === "foul" && e.reason === "no-rail-after-contact"));
+  assert.equal(result.turn, "B");
+  assert.equal(result.ballInHand, "B");
+});
+
+test("turn continues when the shooter legally pockets their own Group's ball", () => {
+  const state = bareState(
+    [
+      { id: "cue", x: 300, y: 300, vx: 0, vy: 0, pocketed: false, group: "cue" },
+      { id: "2", x: 150, y: 150, vx: 0, vy: 0, pocketed: false, group: "solid" },
+    ],
+    { groups: { A: "solid", B: "stripe" }, tableOpen: false, turn: "A" },
+  );
+  const angle = Math.atan2(150 - 300, 150 - 300);
+  const { state: result, events } = simulateShot(state, { angle, power: 1 });
+
+  assert.equal(result.turn, "A");
+  assert.ok(events.some((e) => e.type === "turnContinues"));
+});
+
+test("turn passes on a clean miss with no foul", () => {
+  const state = bareState([
+    { id: "cue", x: 100, y: TABLE.height / 2, vx: 0, vy: 0, pocketed: false, group: "cue" },
+  ]);
+  const { state: result, events } = simulateShot(state, { angle: 0, power: 1 });
+
+  assert.equal(result.turn, "B");
+  assert.equal(result.ballInHand, null);
+  assert.ok(events.some((e) => e.type === "turnPasses"));
+});
+
+test("placeCueBall repositions the cue ball and clears Ball-in-Hand", () => {
+  const state = bareState(
+    [{ id: "cue", x: 500, y: 250, vx: 0, vy: 0, pocketed: true, group: "cue" }],
+    { ballInHand: "B" },
+  );
+  const result = placeCueBall(state, 200, 100);
+
+  const cue = result.balls.find((b) => b.id === "cue");
+  assert.equal(cue.x, 200);
+  assert.equal(cue.y, 100);
+  assert.equal(cue.pocketed, false);
+  assert.equal(result.ballInHand, null);
 });
