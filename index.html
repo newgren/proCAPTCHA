@@ -105,14 +105,8 @@
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: conic-gradient(
-      var(--accent-yellow) 0deg 90deg,
-      var(--accent-blue) 90deg 180deg,
-      var(--accent-red) 180deg 270deg,
-      var(--accent-purple) 270deg 360deg
-    );
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    border: 3px solid rgba(30, 80, 209, 0.25);
+    border-top-color: var(--accent-blue);
     animation: spin 0.9s linear infinite;
   }
   #checkmark {
@@ -267,12 +261,11 @@
     <span class="checkbox-text">I'm not a robot</span>
     <div class="widget-brand">
       <svg width="30" height="30" viewBox="0 0 40 40">
-        <path d="M20,20 L38,20 A18,18 0 0,1 20,38 Z" fill="#ffd91a" />
-        <path d="M20,20 L20,38 A18,18 0 0,1 2,20 Z" fill="#1e50d1" />
-        <path d="M20,20 L2,20 A18,18 0 0,1 20,2 Z" fill="#d1231e" />
-        <path d="M20,20 L20,2 A18,18 0 0,1 38,20 Z" fill="#7a1ed1" />
+        <circle cx="20" cy="20" r="18" fill="#1a1a1a" />
+        <circle cx="20" cy="20" r="10" fill="#f5f5f0" />
+        <text x="20" y="24" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#111">8</text>
       </svg>
-      <div class="wordmark">poolCAPTCHA</div>
+      <div class="wordmark">PROCAPTCHA</div>
     </div>
   </label>
 
