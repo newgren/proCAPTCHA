@@ -7,20 +7,62 @@
 <style>
   html, body {
     margin: 0;
-    height: 100%;
-    background: #eef0f3;
-    overflow: hidden;
-    overscroll-behavior: none;
+    background: #fff;
   }
   body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
     font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   .hidden {
     display: none !important;
+  }
+
+  #wrapper {
+    max-width: 760px;
+    margin: 56px auto;
+    padding: 0 24px 60px;
+    box-sizing: border-box;
+  }
+  #site-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+  #site-brand svg {
+    display: block;
+    flex-shrink: 0;
+  }
+  #site-name {
+    font-weight: 700;
+    font-size: 18px;
+    color: #1a1a1a;
+    letter-spacing: -0.01em;
+  }
+  #site-name .tld {
+    color: #3f6fd1;
+  }
+  #page-title {
+    font-size: 32px;
+    line-height: 1.2;
+    margin: 0 0 12px;
+    color: #111;
+  }
+  #page-subtitle {
+    font-size: 17px;
+    font-weight: 400;
+    color: #444;
+    margin: 0 0 28px;
+  }
+  #page-footer {
+    margin-top: 40px;
+    font-size: 14px;
+    color: #666;
+    max-width: 560px;
+    line-height: 1.5;
+  }
+  @media (max-width: 480px) {
+    #page-title { font-size: 26px; }
+    #page-subtitle { font-size: 15px; }
   }
 
   #checkbox-card {
@@ -139,6 +181,15 @@
 </head>
 <body>
 <div id="wrapper">
+  <div id="site-brand">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2 L21 5.5 V11 C21 16 17 20 12 22 C7 20 3 16 3 11 V5.5 Z" fill="#3f6fd1" />
+    </svg>
+    <span id="site-name">meridian<span class="tld">.io</span></span>
+  </div>
+  <h1 id="page-title">Verifying your connection</h1>
+  <p id="page-subtitle">We need to confirm you're human before you can continue.</p>
+
   <label id="checkbox-card">
     <input type="checkbox" id="verify-checkbox" />
     <div id="loader-checkbox" class="hidden"></div>
@@ -166,6 +217,8 @@
       </div>
     </div>
   </div>
+
+  <p id="page-footer">meridian.io checks every visitor before granting access to this page.</p>
 </div>
 <script type="module">
 import {
