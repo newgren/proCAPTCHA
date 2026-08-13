@@ -354,7 +354,34 @@ function showIntroBanner() {
   }, INTRO_BANNER_VISIBLE_MS);
 }
 
-let state = createInitialState();
+// Debug/testing entry point: load with ?sandbox=endgame to skip straight to an
+// "almost won" state (player is Solids, one solid left, 8-ball still up) instead
+// of a fresh break, so the win/loss end-game flow can be tested without playing
+// a full game out each time. Not linked from the UI anywhere.
+const SANDBOX_MODE = new URLSearchParams(location.search).get("sandbox");
+
+/** Player is Solids with only the 1-ball left on the table; the 8-ball is still up. */
+function createSandboxEndgameState() {
+  const sandboxState = createInitialState();
+  sandboxState.tableOpen = false;
+  sandboxState.groups = { A: "solid", B: "stripe" };
+  let solidsRemaining = 1;
+  for (const b of sandboxState.balls) {
+    if (b.group !== "solid") continue;
+    if (solidsRemaining > 0) {
+      solidsRemaining--;
+    } else {
+      b.pocketed = true;
+    }
+  }
+  return sandboxState;
+}
+
+function freshGameState() {
+  return SANDBOX_MODE === "endgame" ? createSandboxEndgameState() : createInitialState();
+}
+
+let state = freshGameState();
 
 /** idle | aiming | armed | pulling | animating */
 let phase = "idle";
@@ -913,7 +940,7 @@ function updateWidgetResult() {
 }
 
 tryAgainBtn.addEventListener("click", () => {
-  state = createInitialState();
+  state = freshGameState();
   opponentName = pickOpponentName();
   phase = "idle";
   animation = null;
