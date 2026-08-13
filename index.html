@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Pool CAPTCHA</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #1b1b1b;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #table {
+    touch-action: none;
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="table"></canvas>
+<script type="module">
+import { simulateShot, createInitialState, TABLE, BALL_RADIUS, POCKETS, DT } from "./game.js";
+
+const canvas = document.getElementById("table");
+const ctx = canvas.getContext("2d");
+
+let state = createInitialState();
+
+/** idle | aiming | armed | pulling | animating */
+let phase = "idle";
+let aimAngle = 0;
+let pullPower = 0;
+let pullStart = null;
+let animation = null; // { frames, startTime }
+
+const MAX_PULL = 220; // table units of drag distance mapping to full power
+
+function cueBall(balls) {
+  return balls.find((b) => b.id === "cue");
+}
+
+const BALL_COLORS = {
+  1: "#d4b106", 2: "#1e50d1", 3: "#d1231e", 4: "#7a1ed1",
+  5: "#e07a1e", 6: "#1e8a3d", 7: "#6b2a1e", 8: "#111111",
+};
+
+function colorFor(id) {
+  if (id === "cue") return "#f5f5f0";
+  const n = Number(id);
+  return n <= 8 ? BALL_COLORS[n] : BALL_COLORS[n - 8];
+}
+
+function isStripe(id) {
+  return id !== "cue" && Number(id) > 8;
+}
+
+function resize() {
+  const margin = 24;
+  const availW = window.innerWidth - margin * 2;
+  const availH = window.innerHeight - margin * 2;
+  const aspect = TABLE.width / TABLE.height;
+  let cssW = availW;
+  let cssH = cssW / aspect;
+  if (cssH > availH) {
+    cssH = availH;
+    cssW = cssH * aspect;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  ctx.setTransform(dpr * (cssW / TABLE.width), 0, 0, dpr * (cssH / TABLE.height), 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function pointerTablePos(evt) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((evt.clientX - rect.left) / rect.width) * TABLE.width,
+    y: ((evt.clientY - rect.top) / rect.height) * TABLE.height,
+  };
+}
+
+function draw() {
+  ctx.clearRect(0, 0, TABLE.width, TABLE.height);
+
+  ctx.fillStyle = "#0f6b3c";
+  ctx.fillRect(0, 0, TABLE.width, TABLE.height);
+  ctx.strokeStyle = "#5a3a22";
+  ctx.lineWidth = 16;
+  ctx.strokeRect(0, 0, TABLE.width, TABLE.height);
+
+  ctx.fillStyle = "#111";
+  for (const p of POCKETS) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const balls = currentBalls();
+  for (const b of balls) {
+    if (b.pocketed) continue;
+    drawBall(b);
+  }
+
+  if (phase === "aiming" || phase === "armed" || phase === "pulling") {
+    drawAimLine(cueBall(balls));
+  }
+}
+
+function drawBall(b) {
+  ctx.save();
+  ctx.translate(b.x, b.y);
+
+  if (isStripe(b.id)) {
+    ctx.fillStyle = "#f5f5f0";
+    ctx.beginPath();
+    ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = colorFor(b.id);
+    ctx.fillRect(-BALL_RADIUS, -BALL_RADIUS * 0.45, BALL_RADIUS * 2, BALL_RADIUS * 0.9);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = colorFor(b.id);
+    ctx.beginPath();
+    ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (b.id !== "cue") {
+    ctx.beginPath();
+    ctx.fillStyle = "#f5f5f0";
+    ctx.arc(0, 0, BALL_RADIUS * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#111";
+    ctx.font = `${BALL_RADIUS * 0.7}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(b.id, 0, 1);
+  }
+
+  ctx.restore();
+}
+
+function drawAimLine(cue) {
+  const dx = Math.cos(aimAngle);
+  const dy = Math.sin(aimAngle);
+  const pullOffset = phase === "pulling" ? pullPower * 60 : 0;
+
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cue.x - dx * pullOffset, cue.y - dy * pullOffset);
+  ctx.lineTo(cue.x + dx * 400, cue.y + dy * 400);
+  ctx.stroke();
+
+  if (phase === "pulling") {
+    ctx.fillStyle = "rgba(255,60,60,0.9)";
+    ctx.fillRect(20, 20, 12, 150);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(20, 20 + 150 * (1 - pullPower), 12, 150 * pullPower);
+  }
+}
+
+function currentBalls() {
+  if (animation) {
+    const elapsed = (performance.now() - animation.startTime) / 1000;
+    const idx = Math.min(animation.frames.length - 1, Math.floor(elapsed / DT));
+    return animation.frames[idx].balls;
+  }
+  return state.balls;
+}
+
+function updateAimFromPointer(evt) {
+  const p = pointerTablePos(evt);
+  const cue = cueBall(state.balls);
+  aimAngle = Math.atan2(p.y - cue.y, p.x - cue.x);
+}
+
+canvas.addEventListener("pointerdown", (evt) => {
+  if (phase === "idle") {
+    phase = "aiming";
+    updateAimFromPointer(evt);
+  } else if (phase === "armed") {
+    phase = "pulling";
+    pullStart = pointerTablePos(evt);
+    pullPower = 0;
+  }
+});
+
+canvas.addEventListener("pointermove", (evt) => {
+  if (phase === "aiming") {
+    updateAimFromPointer(evt);
+  } else if (phase === "pulling") {
+    const p = pointerTablePos(evt);
+    const dx = p.x - pullStart.x;
+    const dy = p.y - pullStart.y;
+    const backX = -Math.cos(aimAngle);
+    const backY = -Math.sin(aimAngle);
+    const pulled = Math.max(0, dx * backX + dy * backY);
+    pullPower = Math.min(1, pulled / MAX_PULL);
+  }
+});
+
+canvas.addEventListener("pointerup", () => {
+  if (phase === "aiming") {
+    phase = "armed";
+  } else if (phase === "pulling") {
+    fireShot();
+  }
+});
+
+function fireShot() {
+  const shot = { angle: aimAngle, power: pullPower };
+  const result = simulateShot(state, shot);
+  phase = "animating";
+  animation = { frames: result.frames, startTime: performance.now() };
+
+  const totalDuration = result.frames.length * DT * 1000;
+  setTimeout(() => {
+    state = result.state;
+    animation = null;
+    phase = "idle";
+    pullPower = 0;
+  }, totalDuration);
+}
+
+function loop() {
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
