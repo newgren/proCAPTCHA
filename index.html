@@ -40,6 +40,7 @@ import {
   placeCueBall,
   callPocket,
   isEightBallShot,
+  chooseComputerShot,
   createInitialState,
   TABLE,
   BALL_RADIUS,
@@ -240,7 +241,7 @@ function nearestPocketIndex(p, maxDist = 60) {
 }
 
 canvas.addEventListener("pointerdown", (evt) => {
-  if (state.gameOver) return;
+  if (state.gameOver || state.turn !== "A") return;
   if (state.ballInHand) {
     const p = pointerTablePos(evt);
     state = placeCueBall(state, p.x, p.y);
@@ -289,7 +290,10 @@ canvas.addEventListener("pointerup", () => {
 });
 
 function fireShot() {
-  const shot = { angle: aimAngle, power: pullPower };
+  performShot({ angle: aimAngle, power: pullPower });
+}
+
+function performShot(shot) {
   const result = simulateShot(state, shot);
   phase = "animating";
   animation = { frames: result.frames, startTime: performance.now() };
@@ -301,13 +305,35 @@ function fireShot() {
     phase = "idle";
     pullPower = 0;
     updateHud();
+    maybeTakeComputerTurn();
   }, totalDuration);
+}
+
+/** Computer Opponent — not literally AI, a scripted heuristic (chooseComputerShot). */
+function maybeTakeComputerTurn() {
+  if (state.gameOver || state.turn !== "B") return;
+
+  if (state.ballInHand === "B") {
+    state = placeCueBall(state, TABLE.width * 0.25, TABLE.height / 2);
+    updateHud();
+  }
+
+  const shot = chooseComputerShot(state);
+  if (shot.calledPocket != null && state.calledPocket == null) {
+    state = callPocket(state, shot.calledPocket);
+    updateHud();
+  }
+  performShot({ angle: shot.angle, power: shot.power });
 }
 
 function groupLabel(group) {
   if (group === "solid") return "Solids";
   if (group === "stripe") return "Stripes";
   return "Open table";
+}
+
+function sideLabel(side) {
+  return side === "A" ? "You" : "Computer";
 }
 
 const GAME_OVER_REASONS = {
@@ -319,21 +345,22 @@ const GAME_OVER_REASONS = {
 
 function updateHud() {
   if (state.gameOver) {
-    const { winner, reason } = state.gameOver;
-    hud.textContent = `Player ${winner} wins — Player ${state.gameOver.loser} ${GAME_OVER_REASONS[reason]}`;
+    const { winner, loser, reason } = state.gameOver;
+    hud.textContent = `${sideLabel(winner)} won — ${sideLabel(loser)} ${GAME_OVER_REASONS[reason]}`;
     return;
   }
   if (state.ballInHand) {
-    hud.textContent = `Player ${state.ballInHand} — Ball in hand, tap the table to place the cue ball`;
+    hud.textContent = `${sideLabel(state.ballInHand)} — Ball in hand, tap the table to place the cue ball`;
     return;
   }
   if (isEightBallShot(state) && state.calledPocket == null) {
-    hud.textContent = `Player ${state.turn} — Tap a pocket to call your shot on the 8-ball`;
+    hud.textContent = `${sideLabel(state.turn)} — Tap a pocket to call the shot on the 8-ball`;
     return;
   }
-  hud.textContent = `Player ${state.turn}'s turn — ${groupLabel(state.groups[state.turn])}`;
+  hud.textContent = `${sideLabel(state.turn)} — ${groupLabel(state.groups[state.turn])}`;
 }
 updateHud();
+maybeTakeComputerTurn();
 
 function loop() {
   draw();

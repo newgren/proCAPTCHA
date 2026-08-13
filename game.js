@@ -387,3 +387,94 @@ export function isEightBallShot(state) {
   const shooterGroup = state.groups[state.turn];
   return Boolean(shooterGroup) && groupCleared(state.balls, shooterGroup);
 }
+
+const MAX_CUT_ANGLE = Math.PI * 0.47; // ~85 degrees; beyond this a cut is not physically makeable
+const COMPUTER_MISS_CHANCE = 0.1;
+
+function segmentBlocked(ax, ay, bx, by, balls, excludeIds) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return false;
+  const ux = dx / len;
+  const uy = dy / len;
+
+  for (const ball of balls) {
+    if (ball.pocketed || excludeIds.includes(ball.id)) continue;
+    const t = (ball.x - ax) * ux + (ball.y - ay) * uy;
+    if (t <= 0 || t >= len) continue;
+    const closestX = ax + ux * t;
+    const closestY = ay + uy * t;
+    if (Math.hypot(ball.x - closestX, ball.y - closestY) < BALL_RADIUS * 2) return true;
+  }
+  return false;
+}
+
+function angleDiff(a, b) {
+  let diff = Math.abs(a - b) % (Math.PI * 2);
+  if (diff > Math.PI) diff = Math.PI * 2 - diff;
+  return diff;
+}
+
+export function chooseComputerShot(state, rng = Math.random) {
+  const balls = state.balls;
+  const cue = balls.find((b) => b.id === "cue");
+  const shooter = state.turn;
+  const group = state.groups[shooter];
+
+  let candidateIds;
+  if (isEightBallShot(state)) {
+    candidateIds = ["8"];
+  } else if (group) {
+    candidateIds = balls.filter((b) => !b.pocketed && b.group === group).map((b) => b.id);
+  } else {
+    candidateIds = balls.filter((b) => !b.pocketed && b.id !== "cue" && b.id !== "8").map((b) => b.id);
+  }
+
+  let best = null;
+  for (const id of candidateIds) {
+    const target = balls.find((b) => b.id === id);
+    for (let pocketIndex = 0; pocketIndex < POCKETS.length; pocketIndex++) {
+      const pocket = POCKETS[pocketIndex];
+      const toTargetAngle = Math.atan2(target.y - cue.y, target.x - cue.x);
+      const toPocketAngle = Math.atan2(pocket.y - target.y, pocket.x - target.x);
+      const cutAngle = angleDiff(toTargetAngle, toPocketAngle);
+      if (cutAngle >= MAX_CUT_ANGLE) continue;
+
+      if (segmentBlocked(cue.x, cue.y, target.x, target.y, balls, [cue.id, target.id])) continue;
+      if (segmentBlocked(target.x, target.y, pocket.x, pocket.y, balls, [target.id])) continue;
+
+      const dist = Math.hypot(target.x - cue.x, target.y - cue.y) + Math.hypot(pocket.x - target.x, pocket.y - target.y);
+      const score = cutAngle * 3 + dist * 0.001;
+
+      if (!best || score < best.score) {
+        best = { targetId: id, pocketIndex, score, target, pocket };
+      }
+    }
+  }
+
+  if (!best) {
+    const target = balls.find((b) => b.id === candidateIds[0]) ?? cue;
+    const angle = Math.atan2(target.y - cue.y, target.x - cue.x);
+    const shot = { angle, power: 0.5, targetId: candidateIds[0] };
+    if (candidateIds[0] === "8") shot.calledPocket = 0;
+    return shot;
+  }
+
+  const dirTargetToPocket = Math.atan2(best.pocket.y - best.target.y, best.pocket.x - best.target.x);
+  const aimX = best.target.x - Math.cos(dirTargetToPocket) * BALL_RADIUS * 2;
+  const aimY = best.target.y - Math.sin(dirTargetToPocket) * BALL_RADIUS * 2;
+
+  let angle = Math.atan2(aimY - cue.y, aimX - cue.x);
+  const totalDist = Math.hypot(best.target.x - cue.x, best.target.y - cue.y) + Math.hypot(best.pocket.x - best.target.x, best.pocket.y - best.target.y);
+  let power = Math.max(0.1, Math.min(1, 0.35 + totalDist / 900));
+
+  if (rng() < COMPUTER_MISS_CHANCE) {
+    angle += (rng() - 0.5) * 0.25;
+    power *= 0.7 + rng() * 0.3;
+  }
+
+  const shot = { angle, power, targetId: best.targetId, pocketIndex: best.pocketIndex };
+  if (best.targetId === "8") shot.calledPocket = best.pocketIndex;
+  return shot;
+}

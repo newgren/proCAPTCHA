@@ -5,6 +5,7 @@ import {
   placeCueBall,
   callPocket,
   isEightBallShot,
+  chooseComputerShot,
   createInitialState,
   TABLE,
   BALL_RADIUS,
@@ -290,4 +291,58 @@ test("a non-foul 8-ball shot that misses falls back to normal turn-passing", () 
   assert.equal(result.gameOver, null);
   assert.equal(result.turn, "B");
   assert.ok(events.some((e) => e.type === "turnPasses"));
+});
+
+const noMiss = () => 1; // always clears the 10% miss-chance threshold
+
+test("chooseComputerShot picks the ball with the clearest line over an obstructed one", () => {
+  const state = bareState(
+    [
+      { id: "cue", x: 200, y: 250, vx: 0, vy: 0, pocketed: false, group: "cue" },
+      // "2" is a clean, unobstructed, nearly-straight shot into the top-left pocket.
+      { id: "2", x: 100, y: 100, vx: 0, vy: 0, pocketed: false, group: "solid" },
+      // "3" is a similar-looking shot but has "4" sitting directly in its path to the pocket.
+      { id: "3", x: 850, y: 100, vx: 0, vy: 0, pocketed: false, group: "solid" },
+      { id: "4", x: 950, y: 30, vx: 0, vy: 0, pocketed: false, group: "solid" },
+    ],
+    { groups: { A: "stripe", B: "solid" }, tableOpen: false, turn: "B" },
+  );
+
+  const shot = chooseComputerShot(state, noMiss);
+  assert.equal(shot.targetId, "2");
+});
+
+test("chooseComputerShot targets the 8-ball and calls a pocket once the Group is cleared", () => {
+  const state = clearedGroupState();
+  const shot = chooseComputerShot(state, noMiss);
+
+  assert.equal(shot.targetId, "8");
+  assert.equal(typeof shot.calledPocket, "number");
+  assert.ok(shot.calledPocket >= 0 && shot.calledPocket < POCKETS.length);
+});
+
+test("chooseComputerShot considers every remaining ball on an Open Table", () => {
+  const state = bareState([
+    { id: "cue", x: 500, y: 250, vx: 0, vy: 0, pocketed: false, group: "cue" },
+    { id: "1", x: 100, y: 100, vx: 0, vy: 0, pocketed: false, group: "solid" },
+    { id: "9", x: 900, y: 100, vx: 0, vy: 0, pocketed: false, group: "stripe" },
+  ]);
+
+  const shot = chooseComputerShot(state, noMiss);
+  assert.ok(["1", "9"].includes(shot.targetId));
+});
+
+test("chooseComputerShot aims perfectly on a non-miss roll, and off-target on a miss roll", () => {
+  const state = bareState(
+    [
+      { id: "cue", x: 300, y: 300, vx: 0, vy: 0, pocketed: false, group: "cue" },
+      { id: "1", x: 150, y: 150, vx: 0, vy: 0, pocketed: false, group: "solid" },
+    ],
+    { groups: { A: "stripe", B: "solid" }, tableOpen: false, turn: "B" },
+  );
+
+  const accurate = chooseComputerShot(state, () => 1);
+  const missed = chooseComputerShot(state, () => 0);
+
+  assert.notEqual(accurate.angle, missed.angle);
 });
